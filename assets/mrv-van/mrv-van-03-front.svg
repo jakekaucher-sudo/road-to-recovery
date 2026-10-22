@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1339" viewBox="0 0 2000 1339">
+<rect width="2000" height="1339" fill="#FFFFFF"/>
+<defs><clipPath id="fb"><path d="M700,470 C700,440 720,420 760,418 L1240,418 C1280,420 1300,440 1300,470 L1300,900 L700,900 Z"/></clipPath></defs>
+<g clip-path="url(#fb)">
+  <rect x="0" y="0" width="2000" height="1339" fill="#1C3E75"/>
+  <!-- red lower corners wrapping from the sides -->
+  <path d="M700,720 C760,760 800,820 790,900 L700,900 Z" fill="#CD2127"/>
+  <path d="M1300,720 C1240,760 1200,820 1210,900 L1300,900 Z" fill="#CD2127"/>
+  <!-- white stripes wrapping from the sides -->
+  <path d="M700,700 C790,740 830,820 820,900 L785,900 C795,820 760,760 700,728 Z" fill="#FFFFFF"/>
+  <path d="M1300,700 C1210,740 1170,820 1180,900 L1215,900 C1205,820 1240,760 1300,728 Z" fill="#FFFFFF"/>
+</g>
+<!-- roof cap -->
+<path d="M700,470 C700,440 720,420 760,418 L1240,418 C1280,420 1300,440 1300,470 L1300,500 L700,500 Z" fill="#1C3E75"/>
+<!-- windshield -->
+<path d="M735,500 L1265,500 L1255,650 L745,650 Z" fill="#E0E2E6" stroke="#0C0D16" stroke-width="3"/>
+<path d="M760,520 L1240,520 L1232,628 L768,628 Z" fill="none" stroke="#C8CBD1" stroke-width="2"/>
+<!-- mirrors -->
+<path d="M648,560 L700,566 L700,640 L660,640 C646,640 640,630 642,616 Z" fill="#0A0A10"/>
+<path d="M1352,560 L1300,566 L1300,640 L1340,640 C1354,640 1360,630 1358,616 Z" fill="#0A0A10"/>
+<!-- hood line -->
+<path d="M700,690 C860,672 1140,672 1300,690" fill="none" stroke="#0C0D16" stroke-width="3"/>
+<!-- SBA on the hood -->
+<g transform="translate(1000,745) scale(0.52)">
+<text x="0" y="30" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="96" font-weight="600" fill="#FFFFFF" letter-spacing="2">SBA</text>
+<path d="M-118,-50 h22 M-118,-50 v22" stroke="#FFFFFF" stroke-width="7" fill="none"/>
+<path d="M118,-50 h-22 M118,-50 v22" stroke="#FFFFFF" stroke-width="7" fill="none"/>
+<path d="M-118,50 h22 M-118,50 v-22" stroke="#CD2127" stroke-width="7" fill="none"/>
+<path d="M118,50 h-22 M118,50 v-22" stroke="#CD2127" stroke-width="7" fill="none"/>
+</g>
+<!-- grille -->
+<rect x="860" y="790" width="280" height="56" rx="8" fill="#0C0D16"/>
+<g stroke="#4A4E51" stroke-width="3"><path d="M860,808 H1140 M860,826 H1140"/></g>
+<!-- headlights -->
+<path d="M712,780 L840,788 L840,840 L712,830 Z" fill="#E0E2E6" stroke="#0C0D16" stroke-width="3"/>
+<path d="M1288,780 L1160,788 L1160,840 L1288,830 Z" fill="#E0E2E6" stroke="#0C0D16" stroke-width="3"/>
+<rect x="716" y="818" width="60" height="12" fill="#F58321"/>
+<rect x="1224" y="818" width="60" height="12" fill="#F58321"/>
+<!-- bumper -->
+<path d="M690,850 L1310,850 L1310,905 C1310,920 1300,928 1285,928 L715,928 C700,928 690,920 690,905 Z" fill="#2D3339"/>
+<rect x="760" y="880" width="480" height="30" rx="4" fill="#0C0D16"/>
+<path d="M700,470 C700,440 720,420 760,418 L1240,418 C1280,420 1300,440 1300,470 L1300,900 L700,900 Z" fill="none" stroke="#0C0D16" stroke-width="4"/>
+<!-- tires -->
+<rect x="716" y="928" width="80" height="32" rx="6" fill="#0A0A10"/>
+<rect x="1204" y="928" width="80" height="32" rx="6" fill="#0A0A10"/>
+</svg>

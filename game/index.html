@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Road to Recovery</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#040C24">
+<style>
+  html, body { margin: 0; height: 100%; background: #040C24; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  body { display: flex; align-items: center; justify-content: center; font-family: "Source Sans 3", Helvetica, Arial, sans-serif; color: #DEEAF2; }
+  canvas#gl, canvas#ui { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  canvas#gl { visibility: hidden; } body.show3d canvas#gl { visibility: visible; }
+  canvas#ui { z-index: 2; }
+  #status { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; letter-spacing: 2px; color: #ECC444; background: #040C24; text-align: center; padding: 20px; }
+  #status pre { white-space: pre-wrap; color: #ffb4b4; font-size: 14px; text-align: left; }
+  /* phone & tablet controls: only during the race */
+  .pedal, #pauseBtn, #recal { display: none; position: fixed; z-index: 5; user-select: none; border: 2px solid #ECC444; color: #FEFEFE; background: rgba(14,46,106,0.55);
+    font: 800 13px/1 Helvetica, Arial, sans-serif; letter-spacing: 1px; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(236,196,68,0.35); -webkit-tap-highlight-color: transparent; }
+  .pedal { width: 92px; height: 92px; border-radius: 50%; bottom: max(18px, env(safe-area-inset-bottom)); }
+  #gas { right: max(22px, env(safe-area-inset-right)); border-color: #5CC8FF; box-shadow: 0 0 14px rgba(92,200,255,0.45); }
+  #brake { left: max(22px, env(safe-area-inset-left)); border-color: #CD2127; box-shadow: 0 0 14px rgba(205,33,39,0.45); }
+  .pedal.held { background: rgba(236,196,68,0.45); transform: scale(0.94); }
+  #pauseBtn, #recal { width: 44px; height: 44px; border-radius: 10px; top: max(10px, env(safe-area-inset-top)); font-size: 18px; }
+  #pauseBtn { left: calc(50% + 86px); } #recal { left: calc(50% - 130px); }
+  body.mobile.racing .pedal, body.mobile.racing #pauseBtn { display: flex; }
+  body.mobile.racing.tiltmode #recal, body.mobile.paused.tiltmode #recal { display: flex; }
+  /* steering switch: on the title screen and the pause screen */
+  #steerBtn { display: none; position: fixed; z-index: 6; padding: 11px 16px; border: 2px solid #ECC444; border-radius: 10px; background: rgba(14,46,106,0.8); color: #FEFEFE;
+    font: 800 13px/1 Helvetica, Arial, sans-serif; letter-spacing: 1px; -webkit-tap-highlight-color: transparent; }
+  body.mobile.ontitle #steerBtn { display: block; top: max(12px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+  body.mobile.paused #steerBtn { display: block; top: 74%; left: 50%; transform: translateX(-50%); }
+  #rotate { display: none; position: fixed; inset: 0; z-index: 10; background: #040C24; color: #ECC444; align-items: center; justify-content: center; text-align: center; font: 800 20px Helvetica, Arial; letter-spacing: 2px; padding: 30px; }
+  body.mobile.portrait #rotate { display: flex; flex-direction: column; } body.mobile.portrait.anyway #rotate { display: none; }
+  #anyway { margin-top: 26px; padding: 12px 20px; border: 2px solid #ECC444; border-radius: 10px; background: transparent; color: #ECC444; font: 800 14px Helvetica, Arial; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="ui"></canvas>
+<div id="status">Loading…</div>
+<div id="brake" class="pedal">BRAKE</div>
+<div id="gas" class="pedal">GAS</div>
+<button id="pauseBtn" aria-label="Pause">II</button>
+<button id="recal" aria-label="Re-center steering">&#9678;</button>
+<button id="steerBtn" type="button" aria-label="Switch steering between tilt and drag">STEER: TILT</button>
+<div id="rotate">ROTATE YOUR PHONE<br>TO LANDSCAPE<br><br><span id="steerHint" style="font-size:14px;color:#DEEAF2">The game plays sideways</span><button id="anyway" type="button" onclick="document.body.classList.add('anyway')">PLAY IN PORTRAIT</button></div>
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

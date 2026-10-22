@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Van test</title>
+<style>html,body{margin:0;background:#222;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}</script>
+</head><body>
+<script>addEventListener("error",e=>window.__error=String(e.message||e));addEventListener("unhandledrejection",e=>window.__error=String(e.reason&&e.reason.stack||e.reason));</script>
+<script type="module">
+import * as THREE from "three";
+import { loadArt, ART } from "../src/assets.js";
+import { buildVan } from "../src/three/van3d.js";
+const q = new URLSearchParams(location.search), high = q.get("q") !== "low";
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(1); r.toneMapping = THREE.ACESFilmicToneMapping; r.shadowMap.enabled = true;
+document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9fb7cc);
+const cam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
+scene.add(new THREE.HemisphereLight(0xcfe2f5, 0x5a5040, 1.1)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.4); sun.position.set(6, 10, 4); sun.castShadow = true; scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshLambertMaterial({ color: 0x6d6f73 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+await loadArt(() => {}, false);
+if (high) { const env = new THREE.Scene(); const sph = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, vertexShader: "varying vec3 p; void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}", fragmentShader: "varying vec3 p; void main(){float h=normalize(p).y; gl_FragColor=vec4(mix(vec3(.35,.32,.28),vec3(.75,.85,.95),smoothstep(-.1,.4,h)),1.);}" })); env.add(sph); const pm = new THREE.PMREMGenerator(r); scene.environment = pm.fromScene(env, 0.04).texture; scene.environmentIntensity = 0.6; }
+const van = buildVan(ART, { high }); scene.add(van.root);
+window.setView = (az, el, dist, t = 0) => { cam.position.set(Math.sin(az) * dist, el, Math.cos(az) * dist); cam.lookAt(0, 1.2, 0); van.update({ speed: 0, dt: 0, steer: t, brake: 0, night: 0 }); r.render(scene, cam); return "ok"; };
+window.__ready = true; setView(0.6, 2.2, 11);
+</script></body></html>

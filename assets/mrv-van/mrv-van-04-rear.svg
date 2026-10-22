@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1339" viewBox="0 0 2000 1339">
+<rect width="2000" height="1339" fill="#FFFFFF"/>
+<defs><clipPath id="rb"><path d="M700,470 C700,440 720,420 760,418 L1240,418 C1280,420 1300,440 1300,470 L1300,900 L700,900 Z"/></clipPath></defs>
+<g clip-path="url(#rb)">
+  <rect x="0" y="0" width="2000" height="1339" fill="#1C3E75"/>
+  <!-- red panel wrapping around from the driver side (left when seen from behind) -->
+  <path d="M1300,660 C1210,690 1180,760 1195,830 C1205,865 1235,890 1300,900 Z" fill="#CD2127"/>
+  <path d="M700,660 C790,690 820,760 805,830 C795,865 765,890 700,900 Z" fill="#CD2127"/>
+</g>
+<!-- door seam and hinges -->
+<path d="M1000,500 L1000,850" stroke="#0C0D16" stroke-width="4"/>
+<g fill="#0C0D16"><rect x="704" y="560" width="10" height="40"/><rect x="704" y="760" width="10" height="40"/>
+<rect x="1286" y="560" width="10" height="40"/><rect x="1286" y="760" width="10" height="40"/></g>
+<!-- roof cap -->
+<path d="M700,470 C700,440 720,420 760,418 L1240,418 C1280,420 1300,440 1300,470 L1300,500 L700,500 Z" fill="#1C3E75"/>
+<path d="M700,500 L1300,500" stroke="#0C0D16" stroke-width="3"/>
+<!-- livery text on the doors -->
+<g transform="translate(1000,575) scale(0.7)">
+<text x="0" y="30" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="96" font-weight="600" fill="#FFFFFF" letter-spacing="2">SBA</text>
+<path d="M-118,-50 h22 M-118,-50 v22" stroke="#FFFFFF" stroke-width="7" fill="none"/>
+<path d="M118,-50 h-22 M118,-50 v22" stroke="#FFFFFF" stroke-width="7" fill="none"/>
+<path d="M-118,50 h22 M-118,50 v-22" stroke="#CD2127" stroke-width="7" fill="none"/>
+<path d="M118,50 h-22 M118,50 v-22" stroke="#CD2127" stroke-width="7" fill="none"/>
+</g>
+<g transform="translate(1000,695) scale(0.78)">
+<text x="0" y="0" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="60" font-weight="700" fill="#FFFFFF" letter-spacing="3">DISASTER</text>
+<text x="0" y="58" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="60" font-weight="700" fill="#FFFFFF" letter-spacing="3">RECOVERY</text>
+<text x="0" y="100" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="21" font-weight="700" fill="#FFFFFF">Businesses&#160;&#160;&#9642;&#160;&#160;Homeowners</text>
+<text x="0" y="124" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="21" font-weight="700" fill="#FFFFFF">Renters&#160;&#160;&#9642;&#160;&#160;Nonprofits</text>
+</g>
+<!-- tail lights -->
+<g>
+  <rect x="704" y="640" width="26" height="170" rx="5" fill="#CD2127" stroke="#0C0D16" stroke-width="3"/>
+  <rect x="707" y="700" width="20" height="40" fill="#F58321"/>
+  <rect x="707" y="748" width="20" height="26" fill="#E0E2E6"/>
+  <rect x="1270" y="640" width="26" height="170" rx="5" fill="#CD2127" stroke="#0C0D16" stroke-width="3"/>
+  <rect x="1273" y="700" width="20" height="40" fill="#F58321"/>
+  <rect x="1273" y="748" width="20" height="26" fill="#E0E2E6"/>
+</g>
+<!-- door handles -->
+<rect x="965" y="832" width="24" height="10" rx="5" fill="#0C0D16"/>
+<rect x="1011" y="832" width="24" height="10" rx="5" fill="#0C0D16"/>
+<!-- bumper and step -->
+<path d="M690,850 L1310,850 L1310,905 C1310,920 1300,928 1285,928 L715,928 C700,928 690,920 690,905 Z" fill="#2D3339"/>
+<rect x="730" y="870" width="60" height="14" fill="#CD2127"/><rect x="1210" y="870" width="60" height="14" fill="#CD2127"/>
+<rect x="880" y="896" width="240" height="20" rx="4" fill="#0C0D16"/>
+<path d="M700,470 C700,440 720,420 760,418 L1240,418 C1280,420 1300,440 1300,470 L1300,900 L700,900 Z" fill="none" stroke="#0C0D16" stroke-width="4"/>
+<!-- tires -->
+<rect x="716" y="928" width="80" height="32" rx="6" fill="#0A0A10"/>
+<rect x="1204" y="928" width="80" height="32" rx="6" fill="#0A0A10"/>
+</svg>

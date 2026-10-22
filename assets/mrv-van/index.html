@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>MRV van views</title>
+<style>body{margin:0;background:#fff}img{display:block;width:2000px;height:1339px}</style></head>
+<body>
+<img id="v" src="mrv-van-02-passenger-side.svg">
+<script>
+  const q = new URLSearchParams(location.search).get('v');
+  if (q) document.getElementById('v').src = q + '?' + Date.now();
+</script>
+</body></html>

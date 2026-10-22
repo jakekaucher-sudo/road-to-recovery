@@ -1,0 +1,29 @@
+# Mac clutter
+.DS_Store
+__pycache__/
+
+# Kept on this computer only (not part of the published game)
+.claude/
+claude.md
+CLAUDE.md
+research/
+prompts/
+motion-graphic/
+
+# Licensed Artlist source tracks and full-size original art (the game uses the trimmed cuts and JPEGs)
+game/audio/source/
+game/art/*/src/
+
+# Build output for the claude.ai Artifact (rebuild with game/tools/build_artifact.py)
+game/dist/
+
+# Local tools downloaded for publishing
+.tools/
+
+# Test screenshots, and the original reference photo supplied for the van (not needed by the game)
+game/out/
+assets/mrv-van/supplied/
+assets/mrv-van/reference.png
+
+# Self-signed certificate for the local phone test server (private key: never publish)
+game/tools/.cert/

@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1339" viewBox="0 0 2000 1339">
+<rect width="2000" height="1339" fill="#FFFFFF"/>
+<defs><clipPath id="body"><path d="M405,792 C405,760 432,744 472,736 L522,730 C560,650 622,560 700,506 C722,492 760,486 820,484 L1540,482 C1576,484 1596,506 1597,542 L1599,898 L1372,898 A97,97 0 0 0 1178,898 L668,898 A97,97 0 0 0 474,898 L405,898 Z"/></clipPath></defs>
+<g >
+
+<g clip-path="url(#body)">
+  <rect x="0" y="0" width="2000" height="1339" fill="#1C3E75"/>
+  <!-- front red swoosh (under the white stripe) -->
+  <path d="M470,740 C560,760 700,790 860,900 L560,900 C520,880 480,830 470,740 Z" fill="#CD2127"/>
+  <path d="M560,700 C600,660 640,620 690,600 L700,700 Z" fill="#CD2127"/>
+  <!-- white front stripe -->
+  <path d="M500,728 C620,760 760,810 880,900 L820,900 C720,830 600,790 480,770 Z" fill="#FFFFFF"/>
+  <!-- white centre band -->
+  <path d="M1020,482 C1065,600 1075,720 1040,900 L1090,900 C1125,720 1115,600 1070,482 Z" fill="#FFFFFF"/>
+  <!-- big red panel -->
+  <path d="M1070,482 C1115,600 1125,720 1090,900 L1310,900 C1450,840 1540,740 1540,650
+           C1540,560 1430,490 1290,482 Z" fill="#CD2127"/>
+</g>
+
+<!-- rocker band and underbody -->
+<path d="M405,836 L1599,836 L1599,872 L405,872 Z" fill="#4A4E51" clip-path="url(#body)"/>
+<path d="M405,872 L1599,872 L1599,898 L405,898 Z" fill="#1C3E75" clip-path="url(#body)"/>
+<path d="M430,898 L1580,898 L1580,912 L430,912 Z" fill="#0C0D16"/>
+<!-- bumpers -->
+<path d="M400,800 C400,780 410,770 425,768 L470,765 L470,898 L400,898 Z" fill="#2D3339"/>
+<rect x="1560" y="836" width="42" height="62" fill="#2D3339"/>
+<!-- headlight and tail light -->
+<path d="M418,772 L470,768 L470,800 C450,802 430,800 418,790 Z" fill="#E0E2E6"/>
+<path d="M425,788 L470,786 L470,800 C450,802 435,798 425,794 Z" fill="#F58321"/>
+<rect x="1578" y="700" width="18" height="120" rx="4" fill="#CD2127"/>
+<rect x="1578" y="745" width="18" height="30" fill="#F58321"/>
+<rect x="1578" y="780" width="18" height="18" fill="#E0E2E6"/>
+<!-- windshield and cab window -->
+<path d="M530,732 L690,528 L720,520 L790,520 L790,700 L560,700 Z" fill="#1C3E75"/>
+<path d="M545,728 L695,540 L720,536 L720,696 L580,696 Z" fill="#E0E2E6"/>
+<path d="M735,536 L792,536 L792,696 L735,696 Z" fill="#E0E2E6"/>
+<path d="M735,536 L792,536 L792,696 L735,696 Z" fill="none" stroke="#0C0D16" stroke-width="3"/>
+<!-- door mirror -->
+<path d="M598,660 L650,660 L650,740 L612,740 C600,740 596,730 598,718 Z" fill="#0A0A10"/>
+<!-- side marker lamps -->
+<rect x="748" y="846" width="30" height="12" rx="3" fill="#F58321"/>
+<rect x="1108" y="846" width="30" height="12" rx="3" fill="#F58321"/>
+<rect x="1478" y="846" width="30" height="12" rx="3" fill="#F58321"/>
+<!-- panel lines -->
+<g fill="none" stroke="#0C0D16" stroke-width="3" opacity="0.8">
+  <path d="M805,520 L805,836"/>
+  <path d="M1085,500 L1085,836"/>
+  <path d="M1530,500 L1530,836"/>
+  <path d="M700,760 L1085,760"/>
+  <path d="M1090,560 L1530,560"/>
+  <path d="M780,540 C820,536 1500,534 1560,540"/>
+</g>
+<!-- door handle -->
+<rect x="768" y="788" width="14" height="14" rx="7" fill="#0C0D16"/>
+<!-- body outline -->
+<path d="M405,792 C405,760 432,744 472,736 L522,730 C560,650 622,560 700,506 C722,492 760,486 820,484 L1540,482 C1576,484 1596,506 1597,542 L1599,898 L1372,898 A97,97 0 0 0 1178,898 L668,898 A97,97 0 0 0 474,898 L405,898 Z" fill="none" stroke="#0C0D16" stroke-width="4"/>
+<g transform="translate(571,906)"><circle r="72" fill="#0A0A10"/><circle r="43" fill="#C9CBD0" stroke="#9A9DA3" stroke-width="2"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(0)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(60)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(120)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(180)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(240)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(300)"/><circle r="9" fill="#9A9DA3"/></g>
+<g transform="translate(1275,906)"><circle r="72" fill="#0A0A10"/><circle r="43" fill="#C9CBD0" stroke="#9A9DA3" stroke-width="2"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(0)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(60)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(120)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(180)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(240)"/><ellipse cx="0" cy="-26" rx="8" ry="14" fill="#8E9196" transform="rotate(300)"/><circle r="9" fill="#9A9DA3"/></g>
+
+</g>
+<g transform="translate(930,640) scale(1.0)">
+<text x="0" y="30" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="96" font-weight="600" fill="#FFFFFF" letter-spacing="2">SBA</text>
+<path d="M-118,-50 h22 M-118,-50 v22" stroke="#FFFFFF" stroke-width="7" fill="none"/>
+<path d="M118,-50 h-22 M118,-50 v22" stroke="#FFFFFF" stroke-width="7" fill="none"/>
+<path d="M-118,50 h22 M-118,50 v-22" stroke="#CD2127" stroke-width="7" fill="none"/>
+<path d="M118,50 h-22 M118,50 v-22" stroke="#CD2127" stroke-width="7" fill="none"/>
+<text x="0" y="86" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="22" fill="#FFFFFF">U.S. Small Business</text>
+<text x="0" y="110" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="22" fill="#FFFFFF">Administration</text>
+</g>
+<g transform="translate(1280,625) scale(1.0)">
+<text x="0" y="0" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="60" font-weight="700" fill="#FFFFFF" letter-spacing="3">DISASTER</text>
+<text x="0" y="58" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="60" font-weight="700" fill="#FFFFFF" letter-spacing="3">RECOVERY</text>
+<text x="0" y="100" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="21" font-weight="700" fill="#FFFFFF">Businesses&#160;&#160;&#9642;&#160;&#160;Homeowners</text>
+<text x="0" y="124" text-anchor="middle" font-family="'Source Sans 3','Source Sans Pro','Helvetica Neue',Arial,sans-serif" font-size="21" font-weight="700" fill="#FFFFFF">Renters&#160;&#160;&#9642;&#160;&#160;Nonprofits</text>
+</g>
+</svg>

@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Jacket print test</title>
+<style>html,body{margin:0;background:#222}canvas{display:inline-block;vertical-align:top}</style></head><body>
+<script>addEventListener("error",e=>window.__error=String(e.message||e));addEventListener("unhandledrejection",e=>window.__error=String(e.reason&&e.reason.stack||e.reason));</script>
+<script type="module">
+// Shows the intro and ending driver plates side by side, cropped to the jacket and scaled to the same shoulder width.
+import { loadImg, jacketPlate } from "../src/cine.js";
+const out = [];
+for (const [src, sr] of [["../game/art/intro/shot4-driver.jpg", 0.5], ["../game/art/ending/end-driver.jpg", 0.45]]) {
+  const img = await loadImg(src), p = await jacketPlate(img, sr), J = p.jacket;
+  const h = J.bot - J.top, s = 480 / h, c = document.createElement("canvas"); c.width = 520; c.height = 540;
+  c.getContext("2d").drawImage(p, J.cx - 260 / s, J.top - 40 / s, 520 / s, 540 / s, 0, 0, 520, 540);
+  document.body.appendChild(c);
+  out.push({ src, W: img.naturalWidth, H: img.naturalHeight, ...J, shoulder: J.sh, rel: { pwOverH: +(J.pw / h).toFixed(3), pyOverH: +((J.py - J.top) / h).toFixed(3) } });
+}
+window.__info = JSON.stringify(out); window.__ready = true;
+</script></body></html>

@@ -1,0 +1,190 @@
+{
+ "canvas": [
+  2000,
+  1339
+ ],
+ "layers": [
+  {
+   "id": "body-navy",
+   "fill": "#1C3E75",
+   "components": 32,
+   "pixels": 161686
+  },
+  {
+   "id": "livery-red",
+   "fill": "#CE2027",
+   "components": 44,
+   "pixels": 93239
+  },
+  {
+   "id": "livery-white",
+   "fill": "#FFFFFF",
+   "components": 12,
+   "pixels": 32017
+  },
+  {
+   "id": "rocker-light",
+   "fill": "#75787E",
+   "components": 76,
+   "pixels": 7853
+  },
+  {
+   "id": "rocker",
+   "fill": "#4B4F52",
+   "components": 137,
+   "pixels": 27782
+  },
+  {
+   "id": "bumper",
+   "fill": "#303238",
+   "components": 201,
+   "pixels": 39854
+  },
+  {
+   "id": "glass",
+   "fill": "#E0E2E6",
+   "components": 151,
+   "pixels": 10745
+  },
+  {
+   "id": "silver",
+   "fill": "#B1B5B9",
+   "components": 84,
+   "pixels": 5525
+  },
+  {
+   "id": "hub-light",
+   "fill": "#C7CCCD",
+   "components": 122,
+   "pixels": 3110
+  },
+  {
+   "id": "headlight-gray",
+   "fill": "#A0A2A6",
+   "components": 84,
+   "pixels": 1074
+  },
+  {
+   "id": "amber",
+   "fill": "#F68422",
+   "components": 8,
+   "pixels": 1964
+  },
+  {
+   "id": "tail-red",
+   "fill": "#EE2225",
+   "components": 224,
+   "pixels": 4479
+  },
+  {
+   "id": "dark",
+   "fill": "#000009",
+   "components": 226,
+   "pixels": 58580
+  }
+ ],
+ "textGroups": [
+  {
+   "id": "text-dr",
+   "content": "DISASTER / RECOVERY",
+   "bbox": [
+    1135,
+    589,
+    288,
+    96
+   ],
+   "components": 16
+  },
+  {
+   "id": "text-bullets",
+   "content": "Businesses \u25aa Homeowners / Renters \u25aa Nonprofits",
+   "bbox": [
+    1168,
+    713,
+    229,
+    35
+   ],
+   "components": 40
+  },
+  {
+   "id": "text-sba",
+   "content": "SBA wordmark with bracket corners (white top bracket + bottom-right corner, red bottom-left corner)",
+   "bbox": [
+    862,
+    590,
+    121,
+    108
+   ],
+   "components": 5
+  },
+  {
+   "id": "text-sub",
+   "content": "U.S. Small Business / Administration",
+   "bbox": [
+    854,
+    714,
+    137,
+    34
+   ],
+   "components": 38
+  }
+ ],
+ "classes": [
+  {
+   "name": "bg",
+   "fill": "#FFFFFF"
+  },
+  {
+   "name": "white",
+   "fill": "#FFFFFF"
+  },
+  {
+   "name": "navy",
+   "fill": "#1C3E75"
+  },
+  {
+   "name": "red",
+   "fill": "#CE2027"
+  },
+  {
+   "name": "bumper",
+   "fill": "#303238"
+  },
+  {
+   "name": "dark",
+   "fill": "#000009"
+  },
+  {
+   "name": "rocker",
+   "fill": "#4B4F52"
+  },
+  {
+   "name": "rocker-light",
+   "fill": "#75787E"
+  },
+  {
+   "name": "glass",
+   "fill": "#E0E2E6"
+  },
+  {
+   "name": "silver",
+   "fill": "#B1B5B9"
+  },
+  {
+   "name": "hub-light",
+   "fill": "#C7CCCD"
+  },
+  {
+   "name": "amber",
+   "fill": "#F68422"
+  },
+  {
+   "name": "tail-red",
+   "fill": "#EE2225"
+  },
+  {
+   "name": "headlight-gray",
+   "fill": "#A0A2A6"
+  }
+ ]
+}
