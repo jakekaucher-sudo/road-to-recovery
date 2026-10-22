@@ -6,7 +6,7 @@ import { buildTrack, findSeg, SEG, ROAD_W } from "./track.js";
 import { WEATHER, blendWeather } from "./weather.js";
 import { DEFS, HAZ, carWidth } from "./sprites.js";
 import { CAM } from "./render.js";
-import { INPUT, calibrateGyro, tiltNote } from "./input.js";
+import { INPUT, calibrateGyro, tiltNote, rumble } from "./input.js";
 import { getCutscene } from "./cutscenes.js";
 import { RESTORE_DUR } from "./screens.js";
 const easeIO = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -36,7 +36,10 @@ export class Game {
     this.envFrom = prev; this.envBlend = 0;
     const P = this.player; P.z = 0; P.x = 0.35; P.speed = 0; P.y = 0;
     this.camX = P.x * 0.8; this.parallax = 0; this.delivered = false; this.overshot = false; this.autoStop = false;
-    this.time = (keepTime ? this.time : 0) + this.stageCfg.time; this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0;
+    // Phones steer by tilt or touch, which is slower than a keyboard, so they get a little more time,
+    // and nobody starts a stage with less than a fair floor (a retry after time-up never carries anything over).
+    const base = this.stageTime();
+    this.time = Math.max((keepTime ? this.time : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0;
     this.crashes = 0; this.stopT = 0; this.messages = []; this.particles = []; this.tornado = null;
     this.restoreP[this.stageCfg.business] = 0;
     for (const s of this.track.segs) s.cars = [];
@@ -46,6 +49,9 @@ export class Game {
   }
 
   setState(s) { this.state = s; this.stateT = 0; }
+  stageTime() { const D = this.cfg.difficulty; return this.stageCfg.time * (this.mobile ? D.mobileTimeFactor : 1); }
+  // Phones: how much of the wind and curve drift is taken off (the hurricane coast gets the most help).
+  mobileAssist() { const D = this.cfg.difficulty; return this.mobile ? (D.mobileAssist[this.stageCfg.weather] ?? D.mobileAssist.default) : 0; }
   msg(text, color, life = 1.4, size = 5, y = 0.3) { this.messages = this.messages.filter(m => m.text !== text); this.messages.push({ text, color, life, t: 0, size, y }); }
 
   async startFromTitle() {
@@ -121,7 +127,7 @@ export class Game {
         break;
       }
       case "results": if (I.confirmPressed && T > 0.8) { this.audio.sfxPlay("select"); this.nextStage(); } break;
-      case "gameover": if (I.confirmPressed && T > 0.8) { this.loadStage(this.stageIndex); this.time = this.stageCfg.time; this.setState("stageIntro"); this.audio.setMusic(true); } else if (T > 9.5) this.setState("title"); break;
+      case "gameover": if (I.confirmPressed && T > 0.8) { this.loadStage(this.stageIndex); this.time = this.stageTime() * this.cfg.difficulty.retryFactor; this.setState("stageIntro"); this.audio.setMusic(true); } else if (T > 9.5) this.setState("title"); break;
       case "ending": if (I.confirmPressed && T > 4.5) { this.setState("title"); } break;
     }
     // particles
@@ -186,13 +192,14 @@ export class Game {
     const grip = env.grip * (surfaceWater > 0 ? 0.7 : 1);
     const steerRate = C.steer * (0.25 + 0.75 * Math.min(1, speedK * 1.4)) * (0.55 + 0.45 * grip);
     P.x += steer * steerRate * DT * (P.speed > 50 ? 1 : 0);
-    P.x -= speedK * speedK * seg.curve * C.centrifugal * (1 + (1 - grip) * 1.4) * DT * 1.6;
+    const assist = this.mobileAssist();
+    P.x -= speedK * speedK * seg.curve * C.centrifugal * (1 + (1 - grip) * 1.4) * DT * 1.6 * (1 - assist * 0.6);
     const gustA = env.gust * (noise1(this.clock * 0.6, 4) * 0.8 + (noise1(this.clock * 2.5, 5) > 0.55 ? 0.6 : 0));
     let wind = 0;
     if (this.stageCfg.weather === "hurricane") wind = -env.wind * 0.18 - Math.max(0, gustA) * 0.35;      // sea wind from the right
     else if (this.stageCfg.weather === "tornado") wind = gustA * 0.45 * (this.tornado ? Math.sign(this.tornado.x - 0) || 1 : 1);
     else wind = gustA * 0.15;
-    this.windNow = wind * (controls ? 1 : 0);
+    this.windNow = wind * (controls ? 1 : 0) * (1 - assist);
     P.x += this.windNow * DT * Math.min(1, speedK * 1.5 + 0.2);
     P.x = clamp(P.x, -2.4, 2.4);
     // advance
@@ -266,6 +273,7 @@ export class Game {
     if (url !== this.audio.musicUrl) this.audio.playMusic(url, M.volume);
   }
   crash(mult, push, already) {
+    rumble(Math.min(1, 0.35 + mult * 0.5), 140 + mult * 160);
     const P = this.player;
     if (!already) P.speed *= mult;
     P.x += push; this.crashes++; this.hitFx = 1; this.shake = 1.2;

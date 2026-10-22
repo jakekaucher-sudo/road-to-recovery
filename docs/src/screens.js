@@ -30,9 +30,11 @@ export function drawTitle(ctx, game, W, H, t) {
   neonText(ctx, game.cfg.presentedBy, W / 2, 46 * s, Math.round(3 * s), GOLD, { align: "center" });
   neonText(ctx, "THE ROAD TO", W / 2, 84 * s, Math.round(7 * s), LB, { align: "center", glow: NEON });
   neonText(ctx, "RECOVERY", W / 2, 150 * s, Math.round(13 * s), GOLD, { align: "center", glow: RED });
-  if (Math.floor(t * 2) % 2 === 0) neonText(ctx, game.mobile ? "TAP TO START" : "PRESS ENTER TO START", W / 2, H * 0.88, Math.round(4 * s), WHITE, { align: "center", glow: NEON });
+  if (Math.floor(t * 2) % 2 === 0) neonText(ctx, INPUT.pad.connected ? "PRESS A TO START" : game.mobile ? "TAP TO START" : "PRESS ENTER TO START", W / 2, H * 0.88, Math.round(4 * s), WHITE, { align: "center", glow: NEON });
   // controls card
-  const lines = (game.mobile
+  const lines = (INPUT.pad.connected
+    ? ["LEFT STICK / D-PAD  STEER", "RT  GAS", "LT  BRAKE", "X OR RB  BOOST", "MENU  PAUSE"]
+    : game.mobile
     ? [INPUT.steerMode === "tilt" ? "TILT PHONE  STEER" : "DRAG SCREEN  STEER", "HOLD GAS  RIGHT PEDAL", "HOLD BRAKE  LEFT PEDAL", "TAP GAS TWICE  BOOST"]
     : ["← →  STEER", "↑  GAS", "↓ SPACE C  BRAKE", "X SHIFT  BOOST", "P  PAUSE   M  MUSIC"]).map(l => l.replace("←", "<").replace("→", ">").replace("↑", "^").replace("↓", "V"));
   // the card is sized from its text, so the words always sit inside it
@@ -72,7 +74,7 @@ export function drawBriefing(ctx, game, W, H, t) {
     text(ctx, b.type.charAt(0) + b.type.slice(1).toLowerCase() + "  \u2022  " + game.cfg.stages[i].name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()), x, y + 102 * s, Math.round(13 * s), NEON, { align: "center", weight: 500 });
     ctx.globalAlpha = 1;
   });
-  if (t > 1 && Math.floor(t * 2) % 2 === 0) pixelText(ctx, game.mobile ? "TAP TO GO" : "PRESS ENTER", W / 2, H - 40 * s, Math.max(1, Math.round(3 * s)), NEON, { align: "center" });
+  if (t > 1 && Math.floor(t * 2) % 2 === 0) pixelText(ctx, INPUT.pad.connected ? "PRESS A" : game.mobile ? "TAP TO GO" : "PRESS ENTER", W / 2, H - 40 * s, Math.max(1, Math.round(3 * s)), NEON, { align: "center" });
 }
 
 // ---------------------------------------------------------------- restoration (arrival placeholder)
@@ -107,7 +109,7 @@ export function drawRestoration(ctx, game, W, H, t) {
     pixelText(ctx, biz.name, 0, 18 * s, Math.max(1, Math.round(2.5 * s)), "#DFF5E3", { align: "center" });
     ctx.restore();
   }
-  if (t > 1.2) pixelText(ctx, game.mobile ? "TAP TO SKIP" : "ENTER TO SKIP", W - 20 * s, H - H * 0.035 - 8 * s, Math.max(1, Math.round(2 * s)), "rgba(222,234,242,0.6)", { align: "right" });
+  if (t > 1.2) pixelText(ctx, INPUT.pad.connected ? "A TO SKIP" : game.mobile ? "TAP TO SKIP" : "ENTER TO SKIP", W - 20 * s, H - H * 0.035 - 8 * s, Math.max(1, Math.round(2 * s)), "rgba(222,234,242,0.6)", { align: "right" });
 }
 
 // ---------------------------------------------------------------- stage results
@@ -138,7 +140,7 @@ export function drawGameOver(ctx, game, W, H, t) {
 export function drawPause(ctx, game, W, H) {
   const s = Math.min(W / 1280, H / 720); ctx.fillStyle = "rgba(4,12,36,0.7)"; ctx.fillRect(0, 0, W, H);
   neonText(ctx, "PAUSED", W / 2, H * 0.3, Math.round(10 * s), GOLD, { align: "center" });
-  pixelText(ctx, game.mobile ? "TAP TO RESUME" : "P TO RESUME   M MUSIC " + (game.audio.muted ? "OFF" : "ON"), W / 2, H * 0.52, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
+  pixelText(ctx, INPUT.pad.connected ? "MENU BUTTON TO RESUME   VIEW MUSIC " + (game.audio.muted ? "OFF" : "ON") : game.mobile ? "TAP TO RESUME" : "P TO RESUME   M MUSIC " + (game.audio.muted ? "OFF" : "ON"), W / 2, H * 0.52, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
   if (game.mobile) {
     const msg = INPUT.steerMode === "tilt"
       ? (INPUT.gyro.active ? "Hold the phone the way you like to drive, then tap ◎ at the top to re-center steering." : (game.gyroNote || "Tap the screen once to turn on tilt steering."))

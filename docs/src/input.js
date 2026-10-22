@@ -7,6 +7,7 @@ export const INPUT = {
   mobile: false, gyro: { invert: new URLSearchParams(location.search).get("invertTilt") === "1", available: false, active: false, angle: 0, neutral: 0, sensitivity: 24, deadzone: 2 },
   touchSteer: 0, lastGasTap: 0, keys: new Set(), any: false, calibrateRequest: false,
   steerMode: "tilt", notice: null,          // phones: "tilt" (motion sensor) or "drag" (slide a finger)
+  pad: { connected: false, name: "", steer: 0, gas: 0, brake: 0, prev: [] },   // game controller (Xbox layout)
 };
 // Remember the player's steering choice on this device.
 try { const m = localStorage.getItem("rtr-steer"); if (m === "tilt" || m === "drag") INPUT.steerMode = m; } catch (e) {}
@@ -153,9 +154,42 @@ export function pollInput() {
       steer = Math.max(-1, Math.min(1, a / G.sensitivity));
     } else if (INPUT.touchSteer) steer = INPUT.touchSteer;
   }
+  pollPad();
+  if (INPUT.pad.steer) steer = INPUT.pad.steer;                // a controller stick overrides when moved
   INPUT.steer = steer;
-  INPUT.gas = Math.max(has(GAS) ? 1 : 0, INPUT.touchGas || 0);
-  INPUT.brake = Math.max(has(BRAKE) ? 1 : 0, INPUT.touchBrake || 0);
+  INPUT.gas = Math.max(has(GAS) ? 1 : 0, INPUT.touchGas || 0, INPUT.pad.gas);
+  INPUT.brake = Math.max(has(BRAKE) ? 1 : 0, INPUT.touchBrake || 0, INPUT.pad.brake);
   if (INPUT.calibrateRequest) { calibrateGyro(); INPUT.calibrateRequest = false; }
 }
+// ---- game controller (Xbox, or any controller the browser maps to the standard layout) ----
+// Left stick (or D-pad): steer.  RT (or D-pad up): gas.  LT (or D-pad down): brake.  X (or RB): boost.  A: start / confirm.
+// Menu (Start): pause.  View (Back): music on/off.
+const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+window.addEventListener("gamepadconnected", (e) => { INPUT.pad.connected = true; INPUT.pad.name = e.gamepad.id; INPUT.notice = "CONTROLLER CONNECTED"; });
+window.addEventListener("gamepaddisconnected", () => { const any = [...(navigator.getGamepads ? navigator.getGamepads() : [])].some(Boolean); INPUT.pad.connected = any; if (!any) INPUT.notice = "CONTROLLER DISCONNECTED"; });
+function pollPad() {
+  const P = INPUT.pad; P.steer = P.gas = P.brake = 0;
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const gp = [...pads].find(p => p && p.connected); if (!gp) return;
+  P.connected = true;
+  const btn = (i) => gp.buttons[i] ? (gp.buttons[i].value || (gp.buttons[i].pressed ? 1 : 0)) : 0;
+  const pressed = (i) => btn(i) > 0.5, edge = (i) => pressed(i) && !P.prev[i];
+  // stick with a dead zone and a gentle curve for fine steering
+  let sx = gp.axes[0] || 0; const dz = 0.15;
+  sx = Math.abs(sx) < dz ? 0 : Math.sign(sx) * Math.pow((Math.abs(sx) - dz) / (1 - dz), 1.4);
+  P.steer = Math.max(-1, Math.min(1, sx + (pressed(PAD.RIGHT) ? 1 : 0) - (pressed(PAD.LEFT) ? 1 : 0)));
+  P.gas = Math.max(btn(PAD.RT), pressed(PAD.UP) ? 1 : 0); P.brake = Math.max(btn(PAD.LT), pressed(PAD.DOWN) ? 1 : 0);
+  if (edge(PAD.A)) INPUT.confirmPressed = true;
+  if (edge(PAD.X) || edge(PAD.RB)) INPUT.boostPressed = true;
+  if (edge(PAD.MENU)) INPUT.pausePressed = true;
+  if (edge(PAD.VIEW)) INPUT.mutePressed = true;
+  if (edge(PAD.A) || edge(PAD.RT) || P.steer) INPUT.any = true;
+  P.prev = gp.buttons.map(b => b && (b.pressed || b.value > 0.5));
+}
+// Short rumble on a crash, where the controller supports it.
+export function rumble(strength = 0.6, ms = 180) {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const gp of pads) { const a = gp && gp.vibrationActuator; if (a && a.playEffect) a.playEffect("dual-rumble", { duration: ms, strongMagnitude: strength, weakMagnitude: strength * 0.6 }).catch(() => {}); }
+}
+
 export function clearEdges() { INPUT.boostPressed = INPUT.pausePressed = INPUT.confirmPressed = INPUT.mutePressed = false; }

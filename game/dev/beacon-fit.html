@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Beacon fit</title>
+<style>html,body{margin:0;background:#222;color:#ddd;font:13px sans-serif}canvas{max-width:49%;display:inline-block}</style></head><body>
+<script>addEventListener("error",e=>window.__error=String(e.message||e));addEventListener("unhandledrejection",e=>window.__error=String(e.reason&&e.reason.stack||e.reason));</script>
+<script type="module">
+// Finds the bright oval of light in each beacon still and fits an ellipse to it
+// (centre, semi-axes and tilt, as fractions of the image), then draws the fit for checking.
+// Usage: dev/beacon-fit.html  -> window.__fit holds the numbers for BEACON in src/intro.js.
+const NAMES = ["shot1-aerial-beacon", "shot-bridge", "shot3-mall", "shot-interior", "shot4-driver"];
+const load = (src) => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = src; });
+const out = {};
+for (const n of NAMES) {
+  const img = await load("../art/intro/" + n + ".jpg"); if (!img) { out[n] = "missing"; continue; }
+  const W = 640, H = Math.round(img.height * W / img.width), c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(img, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data, m = new Uint8Array(W * H);
+  for (let y = 0; y < H * 0.7; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4, r = d[i], gg = d[i + 1], b = d[i + 2], lum = 0.3 * r + 0.59 * gg + 0.11 * b;
+    if (lum > 222 && Math.min(r, gg, b) > 175) m[y * W + x] = 1; }
+  // largest connected bright region = the oval
+  const lab = new Int32Array(W * H), comps = []; let id = 0;
+  for (let p = 0; p < W * H; p++) { if (!m[p] || lab[p]) continue; id++; const st = [p]; lab[p] = id; let n = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+    while (st.length) { const q = st.pop(), x = q % W, y = (q / W) | 0; n++; sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const k = ny * W + nx; if (m[k] && !lab[k]) { lab[k] = id; st.push(k); } } }
+    comps.push({ n, sx, sy, sxx, syy, sxy }); }
+  comps.sort((a, b) => b.n - a.n); const C = comps[0];
+  const cx = C.sx / C.n, cy = C.sy / C.n, vxx = C.sxx / C.n - cx * cx, vyy = C.syy / C.n - cy * cy, vxy = C.sxy / C.n - cx * cy;
+  const tr = vxx + vyy, det = vxx * vyy - vxy * vxy, l1 = tr / 2 + Math.sqrt(tr * tr / 4 - det), l2 = tr / 2 - Math.sqrt(tr * tr / 4 - det);
+  const a = 2 * Math.sqrt(l1), b = 2 * Math.sqrt(l2), ang = 0.5 * Math.atan2(2 * vxy, vxx - vyy);
+  out[n] = { u: +(cx / W).toFixed(4), v: +(cy / H).toFixed(4), a: +(a / W).toFixed(4), b: +(b / H).toFixed(4), ang: +ang.toFixed(3), area: C.n };
+  g.strokeStyle = "#f0f"; g.lineWidth = 2; g.beginPath(); g.ellipse(cx, cy, a, b, ang, 0, Math.PI * 2); g.stroke();
+  document.body.appendChild(c);
+}
+window.__fit = JSON.stringify(out); window.__ready = true;
+</script></body></html>

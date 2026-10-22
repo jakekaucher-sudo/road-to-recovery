@@ -12,24 +12,25 @@
 //   2  overhead avenue, light trails                     "Homeowners. Renters. Businesses. Nonprofits."
 //   3  the van crosses Memorial Bridge
 //   4  the Mall, Monument and Capitol                    "THE ROAD TO RECOVERY"
-//   5  hands on the wheel, Capitol ahead
-//   6  the driver in the SBA jacket over the city, the beacon overhead
+//   5  the driver in the SBA jacket on a rooftop, the beacon over the city
+//   6  driving out of DC: the bridge to Virginia and I-66, the Capitol in the rearview mirror (no beacon)
 import { registerCutscene } from "./cutscenes.js";
 import { clamp, lerp, smooth, easeInOut } from "./util.js";
-import { loadImg, kenBurns, title, film, fades, jacketPlate, beaconEmblem, drawBeacon, speechBubble, burst } from "./cine.js";
+import { loadImg, kenBurns, title, film, fades, jacketPlate, beaconEmblem, projectLogo, speechBubble, burst } from "./cine.js";
 
 const P = 11.16, PA = 3.2, PB = 8.4, PRESS = 9.4;               // prologue cuts and the button press
 const ROAD = [2.73, 5.52, 8.31, 11.10, 13.89].map(c => c + P);   // the original intro's cuts
 const DUR = P + 16.9, CUTS = [PA, PB, P, ...ROAD];
 const IMG = {};
-const FILES = { desk: "shot0a-desk", call: "shot0b-call", button: "shot0c-button", aerial: "shot1-aerial", avenue: "shot2-avenue", bridge: "shot-bridge", mall: "shot3-mall", interior: "shot-interior", driver: "shot4-driver" };
-// beacon placement per still: disk centre (u, v), radius r (fraction of image width), beam start (ou, ov)
+const FILES = { desk: "shot0a-desk", call: "shot0b-call", button: "shot0c-button", aerial: "shot1-aerial", aerialLit: "shot1-aerial-beacon", avenue: "shot2-avenue", bridge: "shot-bridge", mall: "shot3-mall", drive: "shot5-drive-out", driver: "shot4-driver" };
+// The searchlight and its lit cloud oval are painted into these stills; the numbers are the oval
+// fitted by dev/beacon-fit.html (centre u, v; semi-axes a of width, b of height; tilt), where the
+// "DISASTER RECOVERY" lettering is projected.
 const BEACON = {
-  aerial:   { u: 0.77, v: 0.215, r: 0.080, ou: 0.80, ov: 0.43 },
-  bridge:   { u: 0.28, v: 0.165, r: 0.072, ou: 0.15, ov: 0.31 },
-  mall:     { u: 0.74, v: 0.17, r: 0.060, ou: 0.86, ov: 0.42 },
-  interior: { u: 0.53, v: 0.22, r: 0.048, ou: 0.58, ov: 0.34 },
-  driver:   { u: 0.73, v: 0.25, r: 0.078, ou: 0.84, ov: 0.62 },
+  aerial: { u: 0.7603, v: 0.1124, a: 0.0745, b: 0.0555, ang: 0.079, su: 0.915, sv: 0.48 },
+  bridge: { u: 0.392, v: 0.0865, a: 0.0921, b: 0.0503, ang: -0.027, su: 0.17, sv: 0.32 },
+  mall:   { u: 0.806, v: 0.0991, a: 0.0666, b: 0.0699, ang: -0.018, su: 0.69, sv: 0.34 },
+  driver: { u: 0.7861, v: 0.2013, a: 0.1488, b: 0.1147, ang: 0.007, su: 0.80, sv: 0.56 },
 };
 const CALL_MOUTH = [0.278, 0.484];                               // Chris's mouth on the monitor, in the call still
 
@@ -56,7 +57,7 @@ export function driverShot(ctx, img, W, H, k, s) { // keeps the head clear of th
 function render(ctx, t, W, H, game) {
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
   const s = Math.min(W / 1280, H / 720), [C1, C2, C3, C4, C5] = ROAD;
-  const lit = smooth(P + 0.1, P + 1.1, t);                      // the beacon switches on over the aerial
+  const lit = smooth(P + 0.05, P + 0.7, t);                     // the searchlight switches on over the aerial
   let shake = 0;
   if (t < PA) {
     // a: Randle at his desk late at night
@@ -70,7 +71,7 @@ function render(ctx, t, W, H, game) {
       const tx = v.x + CALL_MOUTH[0] * v.iw * v.s + 40 * s, ty = v.y + CALL_MOUTH[1] * v.ih * v.s - 20 * s;
       const b1 = smooth(3.55, 3.75, t) * (1 - smooth(6.05, 6.2, t)), b2 = smooth(6.2, 6.4, t);
       speechBubble(ctx, W * 0.52, H * 0.27, W * 0.36, "There's a major situation. We have survivors in need of help.", tx, ty, s, b1, Math.floor((t - 3.6) * 40));
-      speechBubble(ctx, W * 0.52, H * 0.25, W * 0.34, "Deploy the Mobile Recovery Team!", tx, ty, s, b2, Math.floor((t - 6.25) * 34));
+      speechBubble(ctx, W * 0.52, H * 0.25, W * 0.36, "Deploy the Mobile Recovery Vehicles!", tx, ty, s, b2, Math.floor((t - 6.25) * 34));
     }
   } else if (t < P) {
     // c: the red MRV button under the desk
@@ -85,8 +86,11 @@ function render(ctx, t, W, H, game) {
       if (v) burst(ctx, v.x + 0.5 * v.iw * v.s, v.y + 0.22 * v.ih * v.s, 70 * s, "CLICK!", smooth(PRESS, PRESS + 0.12, t) * (1 - smooth(PRESS + 0.9, PRESS + 1.2, t)));
     }
   } else if (t < C1) {
-    const v = kenBurns(ctx, IMG.aerial, W, H, easeInOut((t - P) / (C1 - P)), [0.5, 0.4, 1.1], [0.55, 0.47, 1.22]);
-    drawBeacon(ctx, v, BEACON.aerial, lit, t, H * 0.105);
+    const bar = H * 0.105, ka = easeInOut((t - P) / (C1 - P)), fr = [0.6, 0.28, 1.0], to = [0.64, 0.32, 1.1];
+    const v = kenBurns(ctx, IMG.aerial, W, H, ka, fr, to, bar);
+    if (IMG.aerialLit && lit > 0) { ctx.globalAlpha = lit; kenBurns(ctx, IMG.aerialLit, W, H, ka, fr, to, bar); ctx.globalAlpha = 1; }
+    const vl = IMG.aerialLit ? { ...v, iw: IMG.aerialLit.naturalWidth, ih: IMG.aerialLit.naturalHeight, s: v.s * (v.iw / IMG.aerialLit.naturalWidth) } : null;
+    projectLogo(ctx, vl, BEACON.aerial, lit, t);
     if (t < P + 0.35) { ctx.fillStyle = `rgba(255,240,210,${0.6 * (1 - (t - P) / 0.35)})`; ctx.fillRect(0, 0, W, H); }   // the switch-on flash
     title(ctx, W, H, "SBA Disaster Recovery", W * 0.07, H * 0.7, 46 * s, smooth(P + 0.35, P + 0.9, t) * (1 - smooth(C1 - 0.4, C1 - 0.05, t)));
     title(ctx, W, H, "presents", W * 0.07, H * 0.78, 30 * s, smooth(P + 0.9, P + 1.4, t) * (1 - smooth(C1 - 0.4, C1 - 0.05, t)));
@@ -95,18 +99,19 @@ function render(ctx, t, W, H, game) {
     trails(ctx, v, lt);
     ["Homeowners.", "Renters.", "Businesses.", "Nonprofits."].forEach((wd, i) => { const t0 = C1 + 0.2 + i * 0.698; title(ctx, W, H, wd, W * 0.07, H * (0.28 + i * 0.1), 44 * s, smooth(t0, t0 + 0.15, t) * (1 - smooth(C2 - 0.3, C2, t))); });
   } else if (t < C3) {
-    const v = kenBurns(ctx, IMG.bridge, W, H, easeInOut((t - C2) / (C3 - C2)), [0.36, 0.42, 1.2], [0.48, 0.46, 1.08]);
-    drawBeacon(ctx, v, BEACON.bridge, 1, t, H * 0.105);
+    const v = kenBurns(ctx, IMG.bridge, W, H, easeInOut((t - C2) / (C3 - C2)), [0.42, 0.3, 1.06], [0.5, 0.3, 1.0], H * 0.105);
+    projectLogo(ctx, v, BEACON.bridge, 1, t);
   } else if (t < C4) {
-    const v = kenBurns(ctx, IMG.mall, W, H, easeInOut((t - C3) / (C4 - C3)), [0.5, 0.46, 1.0], [0.53, 0.42, 1.12]);
-    drawBeacon(ctx, v, BEACON.mall, 1, t, H * 0.105);
+    const v = kenBurns(ctx, IMG.mall, W, H, easeInOut((t - C3) / (C4 - C3)), [0.58, 0.3, 1.0], [0.63, 0.3, 1.06], H * 0.105);
+    projectLogo(ctx, v, BEACON.mall, 1, t);
     title(ctx, W, H, "THE ROAD TO RECOVERY", W / 2, H * 0.76, 74 * s, smooth(C3 + 0.3, C3 + 0.9, t) * (1 - smooth(C4 - 0.25, C4, t)), { align: "center", weight: "italic 900" });
   } else if (t < C5) {
-    const v = kenBurns(ctx, IMG.interior, W, H, easeInOut((t - C4) / (C5 - C4)), [0.5, 0.5, 1.08], [0.56, 0.46, 1.2]);
-    drawBeacon(ctx, v, BEACON.interior, 0.9, t, H * 0.105);
+    // the driver on the rooftop sees the Disaster Recovery signal over the city...
+    const v = driverShot(ctx, IMG.driverPlate || IMG.driver, W, H, easeInOut((t - C4) / (C5 - C4)), s);
+    projectLogo(ctx, v, BEACON.driver, 1, t);
   } else {
-    const v = driverShot(ctx, IMG.driverPlate || IMG.driver, W, H, easeInOut((t - C5) / (DUR - C5)), s);
-    drawBeacon(ctx, v, BEACON.driver, 1, t, H * 0.105);
+    // ...and heads out of DC: across the bridge toward Virginia and I-66, the Capitol in the rearview mirror
+    kenBurns(ctx, IMG.drive, W, H, easeInOut((t - C5) / (DUR - C5)), [0.52, 0.3, 1.0], [0.56, 0.3, 1.07], H * 0.105);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   film(ctx, W, H, t, true, game, DUR);

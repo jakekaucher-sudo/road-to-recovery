@@ -2,16 +2,19 @@
 // titles, film grain/letterbox, and the SBA jacket print compositor.
 import { clamp, lerp } from "./util.js";
 import { resolveAsset } from "./assets.js";
+import { INPUT } from "./input.js";
 
 export function loadImg(path) { return new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = resolveAsset(path); }); }
 
 // Draw `img` covering the frame, moving from [cx, cy, zoom] to [cx, cy, zoom].
-export function kenBurns(ctx, img, W, H, k, from, to) {
+// `topSlack` lets the still sit up to that many pixels lower than the screen top; the gap is
+// hidden behind the cinematic letterbox, which buys sky room for things near the image's top edge.
+export function kenBurns(ctx, img, W, H, k, from, to, topSlack = 0) {
   if (!img) { ctx.fillStyle = "#040c24"; ctx.fillRect(0, 0, W, H); return null; }
   const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
   const cx = lerp(from[0], to[0], k), cy = lerp(from[1], to[1], k), z = lerp(from[2], to[2], k);
   const cover = Math.max(W / iw, H / ih) * z, dw = iw * cover, dh = ih * cover;
-  const x = clamp(W / 2 - cx * dw, W - dw, 0), y = clamp(H / 2 - cy * dh, H - dh, 0);
+  const x = clamp(W / 2 - cx * dw, W - dw, 0), y = clamp(H / 2 - cy * dh, H - dh, topSlack);
   ctx.drawImage(img, x, y, dw, dh);
   return { x, y, s: cover, iw, ih };
 }
@@ -29,43 +32,88 @@ export function title(ctx, W, H, text, x, y, size, a, opts = {}) {
 }
 
 // ---------------------------------------------------------------- Disaster Recovery beacon
-// A searchlight in the night sky carrying the "DISASTER RECOVERY" lettering, cut from the
-// van's official rear artwork (not redrawn) and shown as a dark silhouette in the light,
-// the way a classic hero signal works.
+// The searchlight and the lit cloud oval are painted into the stills (art/intro, see README).
+// Here the "DISASTER RECOVERY" lettering, cut from the official logo file (not redrawn), is laid
+// into that oval as the stencil's shadow: dark navy, multiplied into the lit cloud so the cloud
+// texture shows through, foreshortened with the oval and softly focused like a real projection.
 let emblem = null;
 export async function beaconEmblem() {
   if (emblem) return emblem;
-  const art = await loadImg("assets/mrv-van/generated/mrv-van-04-rear-B.png"); if (!art) return null;
-  const sx = 780, sy = 512, sw = 440, sh = 185;            // the lettering on the red door panel
+  const art = await loadImg("assets/brand/disaster-recovery-logo.png"); if (!art) return null;
+  const sx = 222, sy = 155, sw = 292, sh = 112;              // just the big white "DISASTER RECOVERY"
   const c = document.createElement("canvas"); c.width = sw; c.height = sh; const g = c.getContext("2d", { willReadFrequently: true });
   g.drawImage(art, sx, sy, sw, sh, 0, 0, sw, sh);
   const d = g.getImageData(0, 0, sw, sh), a = d.data; let x0 = sw, x1 = 0, y0 = sh, y1 = 0;
-  for (let i = 0; i < a.length; i += 4) { const lo = Math.min(a[i], a[i + 1], a[i + 2]), k = clamp((lo - 150) / 70, 0, 1);
-    a[i] = 10; a[i + 1] = 26; a[i + 2] = 60; a[i + 3] = Math.round(255 * k);
+  for (let i = 0; i < a.length; i += 4) { const k = clamp((Math.min(a[i], a[i + 1], a[i + 2]) - 150) / 80, 0, 1);
+    a[i] = 18; a[i + 1] = 30; a[i + 2] = 64; a[i + 3] = Math.round(255 * k);
     if (k > 0.5) { const p = i / 4, x = p % sw, y = (p / sw) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
   g.putImageData(d, 0, 0);
-  const t = document.createElement("canvas"); t.width = x1 - x0 + 1; t.height = y1 - y0 + 1; t.getContext("2d").drawImage(c, -x0, -y0);
+  // trim, then soften slightly (half-size and back) so the edges look projected, not printed
+  const tw = x1 - x0 + 1, th = y1 - y0 + 1, half = document.createElement("canvas"); half.width = Math.ceil(tw * 0.55); half.height = Math.ceil(th * 0.55);
+  half.getContext("2d").drawImage(c, x0, y0, tw, th, 0, 0, half.width, half.height);
+  const t = document.createElement("canvas"); t.width = tw * 2; t.height = th * 2; const tg = t.getContext("2d"); tg.imageSmoothingQuality = "high"; tg.drawImage(half, 0, 0, t.width, t.height);
   emblem = t; return emblem;
 }
-// v: {x, y, s, iw, ih} image-to-screen transform; b: {u, v, r, ou, ov} in image fractions
-// (r = disk radius as a fraction of image width; ou/ov = where the beam starts); a = 0..1 strength.
-export function drawBeacon(ctx, v, b, a, t, minY = 0) {
-  if (!v || a <= 0) return;
+// Soft, tileable cloud texture (value-noise fbm), gray 0.55..1 for multiplying over light.
+let clouds = null, lay = null;
+function cloudTexture() {
+  if (clouds) return clouds;
+  const W = 512, H = 128, c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d"), img = g.createImageData(W, H);
+  const rnd = (x, y, o) => { const n = Math.sin(x * 127.1 + y * 311.7 + o * 74.7) * 43758.5453; return n - Math.floor(n); };
+  const noise = (x, y, o, period) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, sx = xf * xf * (3 - 2 * xf), sy = yf * yf * (3 - 2 * yf);
+    const r = (a, b) => rnd(((a % period) + period) % period, b, o);
+    return (r(xi, yi) * (1 - sx) + r(xi + 1, yi) * sx) * (1 - sy) + (r(xi, yi + 1) * (1 - sx) + r(xi + 1, yi + 1) * sx) * sy; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let v = 0, amp = 0.55, f = 1 / 64, norm = 0;
+    for (let o = 0; o < 5; o++) { v += amp * noise(x * f, y * f * 1.6, o, Math.round(W * f)); norm += amp; amp *= 0.5; f *= 2; }
+    v = v / norm; const k = Math.min(1, Math.max(0, (v - 0.32) * 1.9));            // patchy wisps
+    const g8 = Math.round(255 * (0.68 + 0.32 * (1 - k))), i = (y * W + x) * 4;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = g8; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0); clouds = c; return c;
+}
+// v: {x, y, s, iw, ih} from kenBurns/driverShot. E: the painted oval, fitted by dev/beacon-fit.html
+// (u, v centre; a semi-axis as a fraction of image width; b of height; ang tilt) plus the beam's
+// source (su, sv). k = 0..1 strength. Draws drifting cloud through the light, then the lettering
+// as a see-through stencil shadow, leaning and narrowing toward the lamp like a real projection.
+export function projectLogo(ctx, v, E, k, t) {
+  if (!v || !E || k <= 0) return;
   const P = (u, w) => [v.x + u * v.iw * v.s, v.y + w * v.ih * v.s];
-  const [cx, cy0] = P(b.u, b.v), [ox, oy] = P(b.ou, b.ov), R = b.r * v.iw * v.s, ry = R * 0.62;
-  const cy = Math.max(cy0, minY + ry * 1.12);                 // keep the whole light below the letterbox on any screen shape
-  const fl = a * (0.93 + 0.07 * Math.sin(t * 23) * Math.sin(t * 7.3));
-  const ang = Math.atan2(cy - oy, cx - ox), nx = -Math.sin(ang), ny = Math.cos(ang), w0 = R * 0.12;
-  ctx.save(); ctx.globalCompositeOperation = "lighter";
-  const gb = ctx.createLinearGradient(ox, oy, cx, cy); gb.addColorStop(0, `rgba(255,236,190,${0.55 * fl})`); gb.addColorStop(1, `rgba(255,236,190,${0.12 * fl})`);
-  ctx.fillStyle = gb; ctx.beginPath(); ctx.moveTo(ox + nx * w0, oy + ny * w0); ctx.lineTo(cx + nx * R * 0.9, cy + ny * ry * 0.9); ctx.lineTo(cx - nx * R * 0.9, cy - ny * ry * 0.9); ctx.lineTo(ox - nx * w0, oy - ny * w0); ctx.closePath(); ctx.fill();
-  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.9); halo.addColorStop(0, `rgba(255,230,170,${0.35 * fl})`); halo.addColorStop(1, "rgba(255,230,170,0)");
-  ctx.fillStyle = halo; ctx.beginPath(); ctx.ellipse(cx, cy, R * 1.9, ry * 1.9, 0, 0, Math.PI * 2); ctx.fill();
+  const [cx, cy] = P(E.u, E.v), [sx, sy] = P(E.su ?? E.u, E.sv ?? E.v + 0.4), A = E.a * v.iw * v.s, B = E.b * v.ih * v.s;
+  const tex = cloudTexture(), drift = (t * 18) % 256;
+  ctx.save(); ctx.globalCompositeOperation = "multiply";
+  // 1) haze and dust in the beam: a cloud streak stretched along the light, strongest near the clouds
+  const bx = cx - sx, by = cy - sy, blen = Math.hypot(bx, by), bang = Math.atan2(by, bx), nx = -by / blen, ny = bx / blen;
+  ctx.save(); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(cx + nx * A * 0.95, cy + ny * A * 0.95); ctx.lineTo(cx - nx * A * 0.95, cy - ny * A * 0.95); ctx.closePath(); ctx.clip();
+  ctx.translate(sx, sy); ctx.rotate(bang); ctx.globalAlpha = 0.3 * k;
+  ctx.drawImage(tex, drift, 0, 256, 128, 0, -A, blen * 1.05, A * 2);
   ctx.restore();
-  ctx.save();
-  const gd = ctx.createRadialGradient(cx, cy, 0, cx, cy, R); gd.addColorStop(0, `rgba(255,250,228,${0.95 * fl})`); gd.addColorStop(0.75, `rgba(255,238,184,${0.85 * fl})`); gd.addColorStop(1, `rgba(255,214,130,${0.35 * fl})`);
-  ctx.fillStyle = gd; ctx.beginPath(); ctx.ellipse(cx, cy, R, ry, 0, 0, Math.PI * 2); ctx.fill();
-  if (emblem) { const ew = R * 1.62, eh = ew * emblem.height / emblem.width * 0.8; ctx.globalAlpha = 0.97 * fl; ctx.drawImage(emblem, cx - ew / 2, cy - eh / 2, ew, eh); }   // lettering squashed a little to sit in the tilted disk
+  // 2) clouds drifting through the lit oval, feathered toward its edge
+  ctx.translate(cx, cy); ctx.rotate(E.ang || 0);
+  for (const [f, al] of [[1.06, 0.2], [0.88, 0.25], [0.65, 0.25]]) {
+    ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0, A * f, B * f, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.globalAlpha = al * k; ctx.drawImage(tex, drift * 1.3, 0, 256, 128, -A * 1.1, -B * 1.15, A * 2.2, B * 2.3); ctx.restore();
+  }
+  // 3) the lettering: natural proportions, fitted inside the oval, see-through so the cloud shows
+  if (emblem) {
+    const asp = emblem.width / emblem.height; let tw = A * 2 * 0.74, th = tw / asp * 0.94;
+    if (th > B * 2 * 0.62) { th = B * 2 * 0.62; tw = th * asp / 0.94; }
+    // lean toward the lamp (shear) and narrow on the side nearest it (keystone), drawn in strips
+    const lx = Math.cos(-(E.ang || 0)) * (sx - cx) - Math.sin(-(E.ang || 0)) * (sy - cy), ly = Math.sin(-(E.ang || 0)) * (sx - cx) + Math.cos(-(E.ang || 0)) * (sy - cy);
+    const shear = Math.max(-0.3, Math.min(0.3, (lx / Math.max(1, Math.abs(ly))) * 0.3)), taper = 0.12, N = 18, ew = emblem.width, eh = emblem.height;
+    // compose the keystoned lettering once at full strength, then lay it in at partial opacity
+    const pw = Math.ceil(tw * (1 + taper) + Math.abs(shear) * th + 4), ph = Math.ceil(th + 2);
+    if (!lay || lay.width < pw || lay.height < ph) { lay = document.createElement("canvas"); lay.width = Math.max(pw, 64); lay.height = Math.max(ph, 32); }
+    const lg = lay.getContext("2d"); lg.setTransform(1, 0, 0, 1, 0, 0); lg.clearRect(0, 0, lay.width, lay.height); lg.imageSmoothingQuality = "high";
+    for (let i = 0; i < N; i++) {
+      const y0 = th * i / N, yc = y0 + th / (2 * N) - th / 2, wk = 1 + taper * (0.5 - (i + 0.5) / N) * Math.sign(ly || 1);
+      lg.drawImage(emblem, 0, eh * i / N, ew, eh / N + 1, pw / 2 - tw * wk / 2 + shear * yc, y0, tw * wk, th / N + 1);
+    }
+    ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0, A * 0.97, B * 0.97, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.globalAlpha = k * (0.62 + 0.04 * Math.sin(t * 17) * Math.sin(t * 5.3));
+    ctx.drawImage(lay, 0, 0, pw, ph, -pw / 2, -th / 2, pw, ph);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -111,7 +159,7 @@ export function film(ctx, W, H, t, bars = true, game = null, dur = 0) {
   const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.5)"); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
   const bar = H * 0.105;
   if (bars) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar); }
-  if (game && t > 1.2 && t < dur - 0.6) { const s = Math.min(W / 1280, H / 720); ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = `800 ${Math.round(15 * s)}px Helvetica, Arial`; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(game.mobile ? "TAP TO SKIP" : "ENTER TO SKIP", W - 20 * s, H - bar / 2); }
+  if (game && t > 1.2 && t < dur - 0.6) { const s = Math.min(W / 1280, H / 720); ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = `800 ${Math.round(15 * s)}px Helvetica, Arial`; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(INPUT.pad.connected ? "A TO SKIP" : game.mobile ? "TAP TO SKIP" : "ENTER TO SKIP", W - 20 * s, H - bar / 2); }
   return bar;
 }
 export function fades(ctx, W, H, t, dur, cuts) {

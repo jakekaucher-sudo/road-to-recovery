@@ -12,6 +12,13 @@ export const CONFIG = {
   render: { desktop: [1280, 720], mobile: [960, 540] },
 
   // ---- Driving model (world units; one road segment = 200 units) ----------
+  // Fairness on phones (tilt or touch steering) and on retries. Raise or lower to taste.
+  difficulty: {
+    mobileTimeFactor: 1.12,   // phones get 12% more time on every stage
+    minStartFactor: 1.3,      // phones never start a stage with less than 1.3x its (phone) base time
+    retryFactor: 1.25,        // retrying after time runs out gives 1.25x the stage time
+    mobileAssist: { default: 0.2, hurricane: 0.55, tornado: 0.35 },   // share of wind and curve drift removed on phones
+  },
   physics: {
     maxSpeed: 12000,          // top speed without boost (shown as topMph)
     topMph: 100,
@@ -88,7 +95,7 @@ export const CONFIG = {
   // ---- Music (licensed from Artlist under the owner's plan; see audio/README.md)
   music: {
     menu: "audio/music/stage5-french-touch.m4a",
-    stages: ["audio/music/stage1-the-bounce.m4a", "audio/music/stage2-1993.m4a", "audio/music/stage3-what-you-know-about.m4a", "audio/music/stage4-old-school.m4a", "audio/music/stage2-1993.m4a"],
+    stages: ["audio/music/stage1-the-bounce.m4a", "audio/music/stage2-1993.m4a", "audio/music/stage3-what-you-know-about.m4a", "audio/music/stage4-old-school.m4a", "audio/music/stage5-shake-it.m4a"],
     volume: 0.55,
   },
 

@@ -24,16 +24,20 @@ It prints an address like `https://192.168.50.148:8443/game/`. Open it on the ph
 
 ## Controls
 
-| Action | Keyboard | Phone / tablet |
-|---|---|---|
-| Steer | ← → (or A / D) | Tilt the phone left / right like a steering wheel, or drag left / right (switch with the **STEER** button on the title or pause screen) |
-| Gas | ↑ (or W) | Hold the round **GAS** button (right) |
-| Brake | Space, C, ↓ (or S) | Hold the round **BRAKE** button (left) |
-| Boost (3 per stage) | X or Shift | Double-tap GAS |
-| Pause | P or Esc | ❚❚ button |
-| Re-center steering | — | ◎ button (hold the phone how you like, then tap) |
-| Music on / off | M | — |
-| Skip a cutscene | Enter | Tap |
+| Action | Keyboard | Xbox controller | Phone / tablet |
+|---|---|---|---|
+| Steer | ← → (or A / D) | Left stick (or D-pad) | Tilt the phone left / right like a steering wheel, or drag left / right (switch with the **STEER** button on the title or pause screen) |
+| Gas | ↑ (or W) | RT (right trigger), or D-pad up | Hold the round **GAS** button (right) |
+| Brake | Space, C, ↓ (or S) | LT (left trigger), or D-pad down | Hold the round **BRAKE** button (left) |
+| Boost (3 per stage) | X or Shift | X (or RB) | Double-tap GAS |
+| Start / confirm / skip a cutscene | Enter | A | Tap |
+| Pause | P or Esc | Menu button | ❚❚ button |
+| Re-center steering | — | — | ◎ button (hold the phone how you like, then tap) |
+| Music on / off | M | View button | — |
+
+**Controllers.** Any controller the browser reads as a standard gamepad works, including Xbox controllers over USB or Bluetooth on a computer, iPhone, iPad or Android. Press any button once so the browser notices it. The title screen then shows the controller layout, and crashes rumble where the controller supports it.
+
+**Phones get a little help.** Tilt and touch steering are slower than a keyboard, so on phones every stage gives 12% more time, no stage starts with less than 1.3 times its time, and some of the wind and curve drift is taken off (the most on the Hurricane Coast). A retry after time runs out gives 1.25 times the stage time on any device. All of this is in `difficulty` in `config.js`.
 
 **Steering switch.** The **STEER: TILT / DRAG** button on the title and pause screens picks the steering, and the phone remembers it. On iPhone, tilt asks for motion access on your first tap. Tap **Allow**. If access is refused, the page isn't https, or the app doesn't pass motion data (like the Claude app), the game says so and drag steering takes over. In tilt mode, hold the phone the way you like to drive and tap ◎ to re-center.
 
@@ -89,16 +93,16 @@ The game has cutscene slots for the intro, before each stage, at each arrival an
 **Intro (`src/intro.js`, 28.1 s)** opens with an HQ prologue, then keeps the neo-noir driving-film opening, told with bold, inked illustrations in the style of 2000s crime-game loading screens (`art/intro/`).
 
 1. SBA Disaster Recovery Headquarters, Washington, D.C., 11:47 PM: Randle Logan at his desk.
-2. A video call: Chris Stallings on screen, in comic speech bubbles: "There's a major situation. We have survivors in need of help." Then: "Deploy the Mobile Recovery Team!"
+2. A video call: Chris Stallings on screen, in comic speech bubbles: "There's a major situation. We have survivors in need of help." Then: "Deploy the Mobile Recovery Vehicles!"
 3. Randle presses the red MRV button under his desk. CLICK!
 4. The Disaster Recovery beacon lights up over an aerial of the Potomac, with "SBA Disaster Recovery presents." The music kicks in.
 5. An overhead avenue with moving light trails: "Homeowners. Renters. Businesses. Nonprofits."
 6. A van crossing Memorial Bridge, the beacon in the sky.
 7. The Mall at night with the beacon, and the title.
-8. The driver at the wheel, the Capitol and the beacon through the windshield.
-9. The driver on a rooftop under the beacon, in the royal-blue SBA jacket with "OFFICE OF DISASTER RECOVERY" on the back.
+8. The driver on a rooftop under the beacon, in the royal-blue SBA jacket with "OFFICE OF DISASTER RECOVERY" on the back.
+9. The driver heads out of DC: across the bridge toward Virginia and I-66, the Capitol and Monument in the rearview mirror.
 
-The beacon uses the "DISASTER RECOVERY" lettering cut from the van's official artwork. Rebuild the intro audio with `python3 game/tools/make_intro_audio.py`.
+The searchlight beams and the lit cloud ovals are painted into the stills. The "DISASTER RECOVERY" lettering inside each oval is cut from the official logo (`assets/brand/disaster-recovery-logo.png`), not redrawn, and laid in as the stencil's shadow. Rebuild the intro audio with `python3 game/tools/make_intro_audio.py`.
 
 **Ending (`src/outro.js`, 16.9 s)** plays after the last stop, before the final score. It uses the closing section of the same track.
 

@@ -93,7 +93,7 @@ async function boot() {
     game.onStageLoad = (g) => { world.loadStage(g); engine.warm(world.scene, world.cam); };
     world.loadStage(game); engine.warm(world.scene, world.cam); engine.warm(title.scene, title.cam);
     game.autopilot = params.get("autopilot") === "1";
-    if (params.has("stage")) { game.loadStage(clamp(+params.get("stage") - 1, 0, 4)); game.time = game.stageCfg.time; game.beginStage(); }
+    if (params.has("stage")) { game.loadStage(clamp(+params.get("stage") - 1, 0, 4)); game.beginStage(); }
     if (params.has("state")) game.setState(params.get("state"));
     window.__game = game; window.__input = INPUT; window.__world = world; window.__engine = engine;
     import("./cutscenes.js").then(m => Object.values(m.CUTSCENES).forEach(c => c.preload && c.preload()));

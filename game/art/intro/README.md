@@ -12,11 +12,12 @@ The prompts describe the look (bold comic-book realism, thick ink outlines, cel 
 | `shot0b-call.jpg` | HQ prologue: video call, Chris Stallings on the monitor (cropped to remove a black band) |
 | `shot0c-button.jpg` | HQ prologue: Randle's hand on the red MRV button under the desk (cropped to remove a panel border) |
 | `shot1-aerial.jpg` | Aerial over the Potomac: Lincoln Memorial, Reflecting Pool, Washington Monument, Capitol |
+| `shot1-aerial-beacon.jpg` | The same aerial with the searchlight on (fades in when the button is pressed) |
 | `shot2-avenue.jpg` | Overhead downtown avenue with light trails and a van |
-| `shot-bridge.jpg` | A van crossing Memorial Bridge at night toward the Lincoln Memorial, light trails on the deck |
-| `shot3-mall.jpg` | The Mall at night, Monument in front of the Capitol (cropped to remove a fake "LOADING" bar the model added) |
-| `shot-interior.jpg` | The driver at the wheel, the Capitol through the rainy windshield |
-| `shot4-driver.jpg` | The driver from behind on a rooftop, plain royal-blue jacket |
+| `shot-bridge.jpg` | A van crossing Memorial Bridge at night toward the Lincoln Memorial, light trails on the deck, searchlight from the far shore |
+| `shot3-mall.jpg` | The Mall at night, Monument in front of the Capitol, with the Disaster Recovery searchlight added to the right |
+| `shot4-driver.jpg` | The driver from behind on a rooftop, plain royal-blue jacket, the searchlight over the city |
+| `shot5-drive-out.jpg` | The driver crossing the bridge to Virginia toward I-66 West, the Capitol and Monument in the rearview mirror |
 
 ## Ending (`src/outro.js`, files in `art/ending/`)
 
@@ -32,9 +33,13 @@ The three HQ stills were generated with Nano Banana Pro from portrait photos of 
 
 The game shows real officials' likenesses and gives them a scripted line, so confirm they're comfortable with it before sharing widely.
 
-## Disaster Recovery beacon
+## Disaster Recovery beacon (redone 2026-10-22)
 
-The searchlight in the sky (`drawBeacon` in `src/cine.js`) carries the "DISASTER RECOVERY" lettering cut from the van's official rear artwork (`assets/mrv-van/generated/mrv-van-04-rear-B.png`), not redrawn. Each shot has its own position in `BEACON` in `src/intro.js`.
+The searchlight beams, cloud layer and lit oval were painted into the aerial, bridge, Mall and rooftop stills with Nano Banana Pro edits, so the light sits in the scene in the same ink style. The "DISASTER RECOVERY" lettering is then laid into each oval in code (`projectLogo` in `src/cine.js`). It is cut from the official logo the owner supplied (`assets/brand/disaster-recovery-logo.png`, only the big white words, not the seal or the line beneath), not redrawn. It's multiplied into the lit cloud as the stencil's shadow and foreshortened with the oval. `dev/beacon-fit.html` measures each oval (centre, size, tilt) for `BEACON` in `src/intro.js`. The aerial fades from the original still to the lit one when the button is pressed.
+
+The driving shot was redone to leave DC across the bridge toward Virginia and I-66, with the Capitol in the rearview mirror.
+
+Credits this round: five beacon paintings (800), three attempts to move ovals lower that didn't move them (480), and the new drive (160). Total 1,440.
 
 ## Jacket print
 
