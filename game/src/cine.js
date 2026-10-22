@@ -13,15 +13,94 @@ export function kenBurns(ctx, img, W, H, k, from, to) {
   const cover = Math.max(W / iw, H / ih) * z, dw = iw * cover, dh = ih * cover;
   const x = clamp(W / 2 - cx * dw, W - dw, 0), y = clamp(H / 2 - cy * dh, H - dh, 0);
   ctx.drawImage(img, x, y, dw, dh);
-  return { x, y, s: cover };
+  return { x, y, s: cover, iw, ih };
 }
+// Cutscene titles: heavy type with a dark outline under the neon glow, so they read on any frame.
 export function title(ctx, W, H, text, x, y, size, a, opts = {}) {
   if (a <= 0) return;
   ctx.save(); ctx.globalAlpha = a; ctx.textAlign = opts.align || "left"; ctx.textBaseline = "middle";
-  ctx.font = `${opts.weight || "italic 300"} ${size}px "Helvetica Neue",Helvetica,Arial,sans-serif`;
+  const weight = (opts.weight || "italic 800").replace(/\b[1-7]00\b/, "800");
+  ctx.font = `${weight} ${size}px "Helvetica Neue",Helvetica,Arial,sans-serif`;
   const col = opts.color || "236,72,96";
-  ctx.shadowColor = `rgba(${col},0.95)`; ctx.shadowBlur = size * 0.45; ctx.fillStyle = `rgba(${col},1)`; ctx.fillText(text, x, y);
-  ctx.shadowBlur = 0; ctx.fillStyle = opts.fill || "rgba(255,236,240,0.95)"; ctx.fillText(text, x, y);
+  ctx.lineJoin = "round"; ctx.lineWidth = Math.max(2, size * 0.12); ctx.strokeStyle = "rgba(4,8,20,0.85)"; ctx.strokeText(text, x, y);
+  ctx.shadowColor = `rgba(${col},0.95)`; ctx.shadowBlur = size * 0.4; ctx.fillStyle = `rgba(${col},1)`; ctx.fillText(text, x, y);
+  ctx.shadowBlur = 0; ctx.fillStyle = opts.fill || "rgba(255,240,244,1)"; ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- Disaster Recovery beacon
+// A searchlight in the night sky carrying the "DISASTER RECOVERY" lettering, cut from the
+// van's official rear artwork (not redrawn) and shown as a dark silhouette in the light,
+// the way a classic hero signal works.
+let emblem = null;
+export async function beaconEmblem() {
+  if (emblem) return emblem;
+  const art = await loadImg("../assets/mrv-van/generated/mrv-van-04-rear-B.png"); if (!art) return null;
+  const sx = 780, sy = 512, sw = 440, sh = 185;            // the lettering on the red door panel
+  const c = document.createElement("canvas"); c.width = sw; c.height = sh; const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(art, sx, sy, sw, sh, 0, 0, sw, sh);
+  const d = g.getImageData(0, 0, sw, sh), a = d.data; let x0 = sw, x1 = 0, y0 = sh, y1 = 0;
+  for (let i = 0; i < a.length; i += 4) { const lo = Math.min(a[i], a[i + 1], a[i + 2]), k = clamp((lo - 150) / 70, 0, 1);
+    a[i] = 10; a[i + 1] = 26; a[i + 2] = 60; a[i + 3] = Math.round(255 * k);
+    if (k > 0.5) { const p = i / 4, x = p % sw, y = (p / sw) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+  g.putImageData(d, 0, 0);
+  const t = document.createElement("canvas"); t.width = x1 - x0 + 1; t.height = y1 - y0 + 1; t.getContext("2d").drawImage(c, -x0, -y0);
+  emblem = t; return emblem;
+}
+// v: {x, y, s, iw, ih} image-to-screen transform; b: {u, v, r, ou, ov} in image fractions
+// (r = disk radius as a fraction of image width; ou/ov = where the beam starts); a = 0..1 strength.
+export function drawBeacon(ctx, v, b, a, t, minY = 0) {
+  if (!v || a <= 0) return;
+  const P = (u, w) => [v.x + u * v.iw * v.s, v.y + w * v.ih * v.s];
+  const [cx, cy0] = P(b.u, b.v), [ox, oy] = P(b.ou, b.ov), R = b.r * v.iw * v.s, ry = R * 0.62;
+  const cy = Math.max(cy0, minY + ry * 1.12);                 // keep the whole light below the letterbox on any screen shape
+  const fl = a * (0.93 + 0.07 * Math.sin(t * 23) * Math.sin(t * 7.3));
+  const ang = Math.atan2(cy - oy, cx - ox), nx = -Math.sin(ang), ny = Math.cos(ang), w0 = R * 0.12;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const gb = ctx.createLinearGradient(ox, oy, cx, cy); gb.addColorStop(0, `rgba(255,236,190,${0.55 * fl})`); gb.addColorStop(1, `rgba(255,236,190,${0.12 * fl})`);
+  ctx.fillStyle = gb; ctx.beginPath(); ctx.moveTo(ox + nx * w0, oy + ny * w0); ctx.lineTo(cx + nx * R * 0.9, cy + ny * ry * 0.9); ctx.lineTo(cx - nx * R * 0.9, cy - ny * ry * 0.9); ctx.lineTo(ox - nx * w0, oy - ny * w0); ctx.closePath(); ctx.fill();
+  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.9); halo.addColorStop(0, `rgba(255,230,170,${0.35 * fl})`); halo.addColorStop(1, "rgba(255,230,170,0)");
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.ellipse(cx, cy, R * 1.9, ry * 1.9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.save();
+  const gd = ctx.createRadialGradient(cx, cy, 0, cx, cy, R); gd.addColorStop(0, `rgba(255,250,228,${0.95 * fl})`); gd.addColorStop(0.75, `rgba(255,238,184,${0.85 * fl})`); gd.addColorStop(1, `rgba(255,214,130,${0.35 * fl})`);
+  ctx.fillStyle = gd; ctx.beginPath(); ctx.ellipse(cx, cy, R, ry, 0, 0, Math.PI * 2); ctx.fill();
+  if (emblem) { const ew = R * 1.62, eh = ew * emblem.height / emblem.width * 0.8; ctx.globalAlpha = 0.97 * fl; ctx.drawImage(emblem, cx - ew / 2, cy - eh / 2, ew, eh); }   // lettering squashed a little to sit in the tilted disk
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- comic speech bubble
+// Wrapped, heavy uppercase lettering on a white bubble with an ink outline; the tail
+// points at (tx, ty). `k` (0..1) is the pop-in, `chars` limits the typed-out letters.
+export function speechBubble(ctx, cx, cy, maxW, text, tx, ty, s, k, chars = 1e9) {
+  if (k <= 0) return;
+  const fs = Math.round(30 * s), lh = fs * 1.18, font = `900 ${fs}px "Helvetica Neue",Helvetica,Arial,sans-serif`;
+  ctx.save(); ctx.font = font;
+  const words = text.toUpperCase().split(" "), lines = []; let cur = "";
+  for (const w of words) { const tt = cur ? cur + " " + w : w; if (ctx.measureText(tt).width > maxW - 40 * s && cur) { lines.push(cur); cur = w; } else cur = tt; }
+  if (cur) lines.push(cur);
+  const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 48 * s, bh = lines.length * lh + 34 * s;
+  const sc = 0.6 + 0.4 * k; ctx.translate(cx, cy); ctx.scale(sc, sc); ctx.translate(-cx, -cy); ctx.globalAlpha = Math.min(1, k * 1.5);
+  const x = cx - bw / 2, y = cy - bh / 2, r = Math.min(bh / 2, 26 * s);
+  const path = () => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + bw, y, x + bw, y + bh, r); ctx.arcTo(x + bw, y + bh, x, y + bh, r); ctx.arcTo(x, y + bh, x, y, r); ctx.arcTo(x, y, x + bw, y, r); ctx.closePath(); };
+  // tail (drawn first so the bubble's outline covers its base)
+  const bx = clamp(tx, x + r, x + bw - r), by = ty > cy ? y + bh - 2 : y + 2, half = 16 * s;
+  ctx.fillStyle = "#fff"; ctx.strokeStyle = "#0a0a12"; ctx.lineWidth = 4 * s; ctx.lineJoin = "round";
+  ctx.beginPath(); ctx.moveTo(bx - half, by); ctx.lineTo(tx, ty); ctx.lineTo(bx + half, by); ctx.closePath(); ctx.fill(); ctx.stroke();
+  path(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.fillRect(bx - half + 3 * s, by - 6 * s, half * 2 - 6 * s, 10 * s);
+  ctx.fillStyle = "#0a0a12"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = font;
+  let left = chars; lines.forEach((l, i) => { if (left <= 0) return; ctx.fillText(l.slice(0, left), cx - (ctx.measureText(l).width - ctx.measureText(l.slice(0, left)).width) / 2, y + 17 * s + lh * (i + 0.5)); left -= l.length + 1; });
+  ctx.restore();
+}
+// Comic sound-effect burst ("CLICK!") centred at (x, y).
+export function burst(ctx, x, y, size, text, k) {
+  if (k <= 0) return;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-0.12); const sc = 0.5 + 0.5 * Math.min(1, k * 2.2); ctx.scale(sc, sc); ctx.globalAlpha = Math.min(1, k * 3);
+  ctx.beginPath(); for (let i = 0; i < 22; i++) { const a = i / 22 * Math.PI * 2, rr = (i % 2 ? 0.62 : 1) * size; ctx.lineTo(Math.cos(a) * rr * 1.35, Math.sin(a) * rr); } ctx.closePath();
+  ctx.fillStyle = "#ffd23a"; ctx.fill(); ctx.lineWidth = size * 0.06; ctx.strokeStyle = "#0a0a12"; ctx.stroke();
+  ctx.font = `900 italic ${Math.round(size * 0.62)}px "Helvetica Neue",Helvetica,Arial,sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.lineWidth = size * 0.08; ctx.strokeStyle = "#0a0a12"; ctx.strokeText(text, 0, size * 0.04); ctx.fillStyle = "#e3262d"; ctx.fillText(text, 0, size * 0.04);
   ctx.restore();
 }
 let grain = null;
@@ -32,7 +111,7 @@ export function film(ctx, W, H, t, bars = true, game = null, dur = 0) {
   const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.5)"); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
   const bar = H * 0.105;
   if (bars) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar); }
-  if (game && t > 1.2 && t < dur - 0.6) { const s = Math.min(W / 1280, H / 720); ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.font = `600 ${Math.round(14 * s)}px Helvetica, Arial`; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(game.mobile ? "TAP TO SKIP" : "ENTER TO SKIP", W - 20 * s, H - bar / 2); }
+  if (game && t > 1.2 && t < dur - 0.6) { const s = Math.min(W / 1280, H / 720); ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = `800 ${Math.round(15 * s)}px Helvetica, Arial`; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(game.mobile ? "TAP TO SKIP" : "ENTER TO SKIP", W - 20 * s, H - bar / 2); }
   return bar;
 }
 export function fades(ctx, W, H, t, dur, cuts) {

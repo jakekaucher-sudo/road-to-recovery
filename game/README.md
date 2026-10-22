@@ -86,14 +86,19 @@ The workflow is saved as a skill in `skills/browser-arcade-game/` (also installe
 
 The game has cutscene slots for the intro, before each stage, at each arrival and at the ending (`cutscenes` in `config.js`). An empty slot uses the built-in screen. To add one, register it in `src/cutscenes.js` (instructions at the top of that file) and put its id in the slot.
 
-**Intro (`src/intro.js`, 16.9 s)** keeps the neo-noir driving-film opening concept, told with six bold, inked illustrations in the style of 2000s crime-game loading screens (`art/intro/`). Shots cut on the bar lines of "Night Drive" by IamDayLight.
+**Intro (`src/intro.js`, 28.1 s)** opens with an HQ prologue, then keeps the neo-noir driving-film opening, told with bold, inked illustrations in the style of 2000s crime-game loading screens (`art/intro/`).
 
-1. An aerial over the Potomac toward the Lincoln Memorial, Monument and Capitol, with "SBA Disaster Recovery presents."
-2. When the beat kicks in, an overhead avenue with moving light trails, with "Homeowners. Renters. Businesses. Nonprofits." on the beat.
-3. A van crossing Memorial Bridge toward the Lincoln Memorial.
-4. The Mall at night, Monument in front of the Capitol, and the title.
-5. The driver at the wheel, the Capitol through the windshield.
-6. The driver from behind on a rooftop over the city, in the royal-blue SBA jacket with "OFFICE OF DISASTER RECOVERY" on the back.
+1. SBA Disaster Recovery Headquarters, Washington, D.C., 11:47 PM: Randle Logan at his desk.
+2. A video call: Chris Stallings on screen, in comic speech bubbles: "There's a major situation. We have survivors in need of help." Then: "Deploy the Mobile Recovery Team!"
+3. Randle presses the red MRV button under his desk. CLICK!
+4. The Disaster Recovery beacon lights up over an aerial of the Potomac, with "SBA Disaster Recovery presents." The music kicks in.
+5. An overhead avenue with moving light trails: "Homeowners. Renters. Businesses. Nonprofits."
+6. A van crossing Memorial Bridge, the beacon in the sky.
+7. The Mall at night with the beacon, and the title.
+8. The driver at the wheel, the Capitol and the beacon through the windshield.
+9. The driver on a rooftop under the beacon, in the royal-blue SBA jacket with "OFFICE OF DISASTER RECOVERY" on the back.
+
+The beacon uses the "DISASTER RECOVERY" lettering cut from the van's official artwork. Rebuild the intro audio with `python3 game/tools/make_intro_audio.py`.
 
 **Ending (`src/outro.js`, 16.9 s)** plays after the last stop, before the final score. It uses the closing section of the same track.
 

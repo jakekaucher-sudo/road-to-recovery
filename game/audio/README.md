@@ -4,6 +4,7 @@ All music is licensed from Artlist under the project owner's plan (downloaded un
 
 | File | Track | Used for |
 |---|---|---|
+| `intro-hq.m4a` | Built by `tools/make_intro_audio.py`: a muffled cut of "Night Drive" (20.0–29.9 s) under the HQ scenes, Artlist sound effects (Bjorn Lynne "Multimedia - Cell Phone Ringtone", Omnibit Sound "Casino Galore - Slot Machine Button Click", Artlist Original "Sirens and Alerts - Short Siren" and "Epic Moments - Percussive Hit, Cymbal Impact"), then `intro-night-drive.m4a` unchanged from 11.16 s | Intro cutscene (28.1 s) |
 | `intro-night-drive.m4a` | "Night Drive" by IamDayLight, cut 1.6–18.5 s | Intro cutscene (16.9 s). The beat kicks in at 2.73 s, where shot 2 starts. |
 | `outro-night-drive.m4a` | "Night Drive" by IamDayLight, cut 166.3–183.2 s | Ending cutscene (16.9 s), before the final score |
 | `music/stage1-the-bounce.m4a` | "The Bounce" by Ben Fox (album *Frenchouse Franchise*) | Stage 1 |
