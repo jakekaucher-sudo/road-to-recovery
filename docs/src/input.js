@@ -2,6 +2,7 @@
 // and tablets), with a touch-drag fallback when no gyroscope is available.
 // Produces a normalized state each frame: steer -1..1, gas 0..1, brake 0..1,
 // boost (edge), pause (edge), confirm (edge).
+import { VIEW, gameAngle, dragDX } from "./orient.js";
 export const INPUT = {
   steer: 0, gas: 0, brake: 0, boostPressed: false, pausePressed: false, confirmPressed: false, mutePressed: false,
   mobile: false, gyro: { invert: new URLSearchParams(location.search).get("invertTilt") === "1", available: false, active: false, angle: 0, neutral: 0, sensitivity: 24, deadzone: 2 },
@@ -84,19 +85,17 @@ export function setSteerMode(m) {
 // Drag steering: used in DRAG mode, or in TILT mode when the motion sensor is unavailable.
 let dragId = null, dragX0 = 0;
 const tiltLive = () => INPUT.steerMode === "tilt" && INPUT.gyro.active;
-function dragStart(e) { if (tiltLive()) return; const t = e.changedTouches[0]; dragId = t.identifier; dragX0 = t.clientX; }
+let dragY0 = 0;
+function dragStart(e) { if (tiltLive()) return; const t = e.changedTouches[0]; dragId = t.identifier; dragX0 = t.clientX; dragY0 = t.clientY; }
 function dragMove(e) {
   if (tiltLive() || dragId === null) return;
-  for (const t of e.changedTouches) if (t.identifier === dragId) INPUT.touchSteer = Math.max(-1, Math.min(1, (t.clientX - dragX0) / (window.innerWidth * 0.18)));
+  for (const t of e.changedTouches) if (t.identifier === dragId) INPUT.touchSteer = Math.max(-1, Math.min(1, dragDX(t, dragX0, dragY0) / (VIEW.w * 0.18)));
 }
 
 // ---- gyroscope ---------------------------------------------------------------
 // Steering angle = component of world "up" along the screen's right axis, which
 // works both for turning the phone like a wheel and for tilting it flat.
-function screenAngle() {
-  if (screen.orientation && typeof screen.orientation.angle === "number") return screen.orientation.angle;
-  return typeof window.orientation === "number" ? window.orientation : 0;
-}
+const screenAngle = gameAngle;   // the angle the game is drawn at (stays put while orient.js holds landscape)
 function onOrientation(e) {
   if (e.beta == null || e.gamma == null) return;
   const first = !INPUT.gyro.active;

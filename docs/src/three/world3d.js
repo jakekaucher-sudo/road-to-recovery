@@ -61,7 +61,7 @@ export class World3D {
 
   // ------------------------------------------------------------------ stage build
   loadStage(game) {
-    if (this.stage) { this.scene.remove(this.stage.group); this.stage.road.dispose(); this.stage.group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); }
+    if (this.stage) this.freeStage(this.stage);
     const track = game.track, cl = buildCenterline(track), stageCfg = game.stageCfg;
     const look = LOOKS[stageCfg.weather] || LOOKS.dusk, prevLook = game.stageIndex > 0 ? LOOKS[this.cfg.stages[game.stageIndex - 1].weather] : LOOKS.dusk;
     const group = new THREE.Group(); this.scene.add(group);
@@ -177,6 +177,23 @@ export class World3D {
     return st;
   }
 
+  // Free everything the last stage built (models, materials, textures) so memory stays flat however many
+  // stages are played; materials kept on the world itself are shared by every stage and stay.
+  freeStage(st) {
+    this.scene.remove(st.group);
+    const shared = new Set(Object.values(this).filter(v => v && v.isMaterial)), seen = new Set();
+    const free = (x) => { if (x && !seen.has(x)) { seen.add(x); x.dispose(); } };
+    st.group.traverse(o => {
+      if (o.geometry) free(o.geometry);
+      if (o.isInstancedMesh) o.dispose();
+      for (const m of [].concat(o.material || [])) {
+        if (shared.has(m)) continue;
+        for (const k in m) if (m[k] && m[k].isTexture) free(m[k]);
+        free(m);
+      }
+    });
+    this.stage = null;
+  }
   buildBusiness(game, st) {
     const idx = game.stageCfg.business, biz = this.cfg.businesses[idx], f = st.track.finish;
     const c = document.createElement("canvas"); c.width = c.height = this.q.high ? 1024 : 640;
@@ -226,8 +243,9 @@ export class World3D {
   updateEnv() {
     if (!this._pmrem) this._pmrem = new THREE.PMREMGenerator(this.e.renderer);
     const sc = new THREE.Scene(); const sky = makeSky(); Object.keys(this.sky.uniforms).forEach(k => { const v = this.sky.uniforms[k].value; sky.uniforms[k].value = v && v.clone ? v.clone() : v; }); sc.add(sky.mesh);
-    if (this._env) this._env.dispose();
-    this._env = this._pmrem.fromScene(sc, 0, 1, 1200).texture; this.scene.environment = this._env;
+    if (this._envRT) this._envRT.dispose();                     // the whole render target, not just its texture
+    this._envRT = this._pmrem.fromScene(sc, 0, 1, 1200); this._env = this._envRT.texture; this.scene.environment = this._env;
+    sky.mesh.geometry.dispose(); sky.mesh.material.dispose();      // the temporary sky was only needed for that one render
   }
 
   // ------------------------------------------------------------------ per frame

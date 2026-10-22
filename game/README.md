@@ -39,6 +39,8 @@ It prints an address like `https://192.168.50.148:8443/game/`. Open it on the ph
 
 **Phones get a little help.** Tilt and touch steering are slower than a keyboard, so on phones every stage gives 12% more time, no stage starts with less than 1.3 times its time, and some of the wind and curve drift is taken off (the most on the Hurricane Coast). A retry after time runs out gives 1.25 times the stage time on any device. All of this is in `difficulty` in `config.js`.
 
+**Phones stay sideways while you play.** From the start tap until you are back on the title screen, turning the phone too far while steering won't flip the game to portrait. On Android the browser really locks landscape (the game goes full screen for this). iPhones don't let websites lock the screen, so there the game turns itself back if the phone flips, and steering, pedals and buttons keep working the same way. The code is in `src/orient.js`; add `?nolock=1` to the address to turn it off.
+
 **Steering switch.** The **STEER: TILT / DRAG** button on the title and pause screens picks the steering, and the phone remembers it. On iPhone, tilt asks for motion access on your first tap. Tap **Allow**. If access is refused, the page isn't https, or the app doesn't pass motion data (like the Claude app), the game says so and drag steering takes over. In tilt mode, hold the phone the way you like to drive and tap ◎ to re-center.
 
 If tilting steers the wrong way on a particular device, add `?invertTilt=1` to the address.

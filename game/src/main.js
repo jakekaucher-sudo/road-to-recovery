@@ -2,6 +2,7 @@
 // Two canvases: WebGL for the 3D world (#gl) and a 2D overlay (#ui) for the
 // HUD, menus and cutscenes. Test hooks: ?autopilot=1 ?stage=N ?mobile=1
 // ?mute=1 ?q=low|high, window.__game / __step(n) / __render().
+import { viewSize, setPlaying, tryHardLock, releaseHardLock } from "./orient.js";
 import { CONFIG } from "../config.js";
 import { loadArt, ART } from "./assets.js";
 import { WorldRenderer } from "./render.js";
@@ -27,13 +28,15 @@ window.__ready = false; window.__error = null;
 let W = 1280, H = 720, uiScale = 1;
 function fitUI() {
   uiScale = Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 2);
-  W = Math.round(window.innerWidth * uiScale); H = Math.round(window.innerHeight * uiScale);
-  ui.width = W; ui.height = H; document.body.classList.toggle("portrait", mobile && window.innerHeight > window.innerWidth);
+  const V = viewSize();
+  W = Math.round(V.w * uiScale); H = Math.round(V.h * uiScale);
+  ui.width = W; ui.height = H; document.body.classList.toggle("portrait", mobile && V.h > V.w);
   if (game) game.renderer = new WorldRenderer(W, H, CONFIG);
 }
 window.addEventListener("resize", fitUI); window.addEventListener("orientationchange", () => setTimeout(fitUI, 250));
 
-let game = null, engine = null, world = null, title = null;
+let game = null, engine = null, world = null, title = null, lastState = null;
+if (mobile) ui.addEventListener("touchend", () => { if (!game || game.state === "title") tryHardLock(); }, { passive: true });
 const ctrl = { gas: document.getElementById("gas"), brake: document.getElementById("brake"), pause: document.getElementById("pauseBtn"), recal: document.getElementById("recal"), steer: document.getElementById("steerBtn") };
 
 const WORLD_STATES = new Set(["stageIntro", "drive", "gameover", "restoring", "results"]);
@@ -59,6 +62,12 @@ function render(dtMs = 16) {
   } else if (s === "restoring") drawRestoration(ctx, g, W, H, T);
   else if (s === "results") { drawRestoration(ctx, g, W, H, RESTORE_DUR); drawResults(ctx, g, W, H, T); }
   else if (s === "ending") drawEnding(ctx, g, W, H, T);
+  // phones: hold landscape from the start tap until the title screen comes back
+  if (mobile) {
+    setPlaying(s !== "title" && !document.body.classList.contains("anyway"));
+    if (s === "title" && lastState && lastState !== "title") releaseHardLock();
+  }
+  lastState = s;
   document.body.classList.toggle("racing", ["stageIntro", "drive"].includes(s) && !g.paused);
   document.body.classList.toggle("paused", ["stageIntro", "drive"].includes(s) && !!g.paused);
   document.body.classList.toggle("ontitle", s === "title");

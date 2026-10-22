@@ -1,5 +1,6 @@
 // In-race interface: timer, distance to the business, speed gauge, boosts,
 // roadmap pins, funds delivered (hypothetical), wind and centre messages.
+import { VIEW } from "./orient.js";
 import { clamp, fmtMoney, plate, rrect, text, hexA, wrapLines, fitSize } from "./util.js";
 import { pixelText, pixelWidth } from "./pixelfont.js";
 
@@ -97,7 +98,7 @@ export function drawStageIntro(ctx, g, W, H, cfg, t) {
   const fact = cfg.facts[st.fact];
   if (fact) {
     // on phones the GAS / BRAKE buttons sit in the bottom corners: keep the words between them
-    const k = W / Math.max(1, window.innerWidth), side = g.mobile ? 128 * k : 24 * s, maxW = W - side * 2;
+    const k = W / Math.max(1, VIEW.w), side = g.mobile ? 128 * k : 24 * s, maxW = W - side * 2;
     const fs = Math.round(22 * s), ls = wrapLines(ctx, fact.text, fs, maxW, { weight: 500 }).slice(0, 3), ss = fitSize(ctx, "Source: " + fact.source, Math.round(14 * s), maxW, { italic: true, weight: 400 });
     const bh = 22 * s + ls.length * fs * 1.25 + ss * 1.6 + 8 * s; ctx.fillStyle = "rgba(14,46,106,0.95)"; ctx.fillRect(0, H - bh, W, bh); ctx.fillStyle = GOLD; ctx.fillRect(0, H - bh, W, 3 * s);
     ls.forEach((l, i) => text(ctx, l, W / 2, H - bh + 14 * s + fs + i * fs * 1.25, fs, WHITE, { align: "center", weight: 500 }));

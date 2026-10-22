@@ -1,6 +1,7 @@
 // WebGL renderer with quality tiers for laptops and phones, adaptive
 // resolution (drops pixel ratio, then bloom, then shadows if frames are slow),
 // and optional bloom post-processing on capable machines.
+import { viewSize } from "../orient.js";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -32,7 +33,7 @@ export class Engine {
     window.addEventListener("resize", () => this.resize());
   }
   resize() {
-    const w = window.innerWidth, h = window.innerHeight; this.w = w; this.h = h;
+    const { w, h } = viewSize(); this.w = w; this.h = h;
     this.renderer.setSize(w, h, true);
     if (this.composer) { this.composer.setSize(w, h); }
     if (this.cam) { this.cam.aspect = w / h; this.cam.updateProjectionMatrix(); }
