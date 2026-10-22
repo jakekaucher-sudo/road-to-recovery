@@ -6,6 +6,8 @@ All homes, businesses, nonprofits and dollar amounts in the game are fictional /
 
 ## Play
 
+**Play now: https://jakekaucher-sudo.github.io/road-to-recovery/** (computer, phone or tablet)
+
 The playable build is in `docs/` and is served by GitHub Pages. On a phone, turn it sideways and tap to start. Tap **Allow** when asked about motion to steer by tilting, or switch the **STEER** button on the title screen to **DRAG**.
 
 ## Edit
