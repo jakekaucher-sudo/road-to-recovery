@@ -10,6 +10,7 @@ import { Game } from "./game.js";
 import { Audio } from "./audio.js";
 import { INPUT, initInput, pollInput, clearEdges, detectMobile } from "./input.js";
 import { drawHUD, drawStageIntro, neonText } from "./hud.js";
+import { stationLogo } from "./radio.js";
 import { drawTitle, drawBriefing, drawRestoration, drawResults, drawGameOver, drawPause, drawEnding, RESTORE_DUR } from "./screens.js";
 import { clamp } from "./util.js";
 import { Engine, detectQuality } from "./three/engine3d.js";
@@ -32,12 +33,27 @@ function fitUI() {
   W = Math.round(V.w * uiScale); H = Math.round(V.h * uiScale);
   ui.width = W; ui.height = H; document.body.classList.toggle("portrait", mobile && V.h > V.w);
   if (game) game.renderer = new WorldRenderer(W, H, CONFIG);
+  placeRadio();
+}
+// Phones: the radio button sits under the stage panel, lined up with it, so it covers scenery and
+// never the road. The HUD draws the station card beside it, so it gets the button's spot in canvas pixels.
+function placeRadio() {
+  const b = ctrl && ctrl.radio; if (!b) return;
+  const s = Math.min(W / 1280, H / 720) / uiScale, x = Math.round(12 * s), y = Math.round(114 * s);
+  b.style.left = x + "px"; b.style.top = y + "px";
+  if (game) game.radioBtn = { x: x * uiScale, y: y * uiScale, w: 46 * uiScale, h: 46 * uiScale, u: uiScale };
+}
+let radioShown = -1;
+function paintRadio(g) {                                                  // the button shows the station you're on
+  if (!ctrl.radio || !g.radio || g.radio.i === radioShown) return;
+  radioShown = g.radio.i; const st = g.radio.station;
+  ctrl.radio.querySelector("img").src = stationLogo(st).toDataURL(); ctrl.radio.style.borderColor = st.color;
 }
 window.addEventListener("resize", fitUI); window.addEventListener("orientationchange", () => setTimeout(fitUI, 250));
 
 let game = null, engine = null, world = null, title = null, lastState = null;
 if (mobile) ui.addEventListener("touchend", () => { if (!game || game.state === "title") tryHardLock(); }, { passive: true });
-const ctrl = { gas: document.getElementById("gas"), brake: document.getElementById("brake"), pause: document.getElementById("pauseBtn"), recal: document.getElementById("recal"), steer: document.getElementById("steerBtn"), heli: document.getElementById("heliBtn") };
+const ctrl = { gas: document.getElementById("gas"), brake: document.getElementById("brake"), pause: document.getElementById("pauseBtn"), recal: document.getElementById("recal"), steer: document.getElementById("steerBtn"), heli: document.getElementById("heliBtn"), radio: document.getElementById("radioBtn") };
 
 const WORLD_STATES = new Set(["stageIntro", "drive", "gameover", "restoring", "results"]);
 function render(dtMs = 16) {
@@ -73,6 +89,7 @@ function render(dtMs = 16) {
   document.body.classList.toggle("paused", ["stageIntro", "drive"].includes(s) && !!g.paused);
   document.body.classList.toggle("ontitle", s === "title");
   document.body.classList.toggle("escortready", !!g.escort.ready && ["stageIntro", "drive"].includes(s));
+  if (mobile) paintRadio(g);
   document.body.classList.toggle("show3d", s === "title" || WORLD_STATES.has(s));
 }
 
@@ -108,6 +125,7 @@ async function boot() {
     const audio = new Audio();
     if (params.get("mute") === "1") audio.setMuted(true);
     game = new Game(CONFIG, ART, new WorldRenderer(W, H, CONFIG), audio, mobile);
+    placeRadio();
     game.onStageLoad = (g) => { world.loadStage(g); world.heliWarm(true); engine.warm(world.scene, world.cam); world.heliWarm(false); engine.settle(); };
     world.loadStage(game); engine.warm(world.scene, world.cam); engine.warm(title.scene, title.cam);
     game.autopilot = params.get("autopilot") === "1";

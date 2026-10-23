@@ -33,9 +33,9 @@ export function drawTitle(ctx, game, W, H, t) {
   if (Math.floor(t * 2) % 2 === 0) neonText(ctx, INPUT.pad.connected ? "PRESS A TO START" : game.mobile ? "TAP TO START" : "PRESS ENTER TO START", W / 2, H * 0.88, Math.round(4 * s), WHITE, { align: "center", glow: NEON });
   // controls card
   const lines = (INPUT.pad.connected
-    ? ["LEFT STICK  STEER", "RT  GAS", "LT  BRAKE", "X OR RB  BOOST", ...(game.mobile ? [] : ["D-PAD < >  RADIO"]), "MENU  PAUSE"]
+    ? ["LEFT STICK  STEER", "RT  GAS", "LT  BRAKE", "X OR RB  BOOST", "D-PAD < >  RADIO", "MENU  PAUSE"]
     : game.mobile
-    ? [INPUT.steerMode === "tilt" ? "TILT PHONE  STEER" : "DRAG SCREEN  STEER", "HOLD GAS  RIGHT PEDAL", "HOLD BRAKE  LEFT PEDAL", "TAP GAS TWICE  BOOST"]
+    ? [INPUT.steerMode === "tilt" ? "TILT PHONE  STEER" : "DRAG SCREEN  STEER", "HOLD GAS  RIGHT PEDAL", "HOLD BRAKE  LEFT PEDAL", "TAP GAS TWICE  BOOST", "TAP THE RADIO  STATION"]
     : ["← →  STEER", "↑  GAS", "↓ SPACE C  BRAKE", "X SHIFT  BOOST", "4 5  RADIO", "P  PAUSE   M  MUSIC"]).map(l => l.replace("←", "<").replace("→", ">").replace("↑", "^").replace("↓", "V"));
   // the card is sized from its text, so the words always sit inside it
   const px = Math.max(1, Math.round(2 * s)), lh = Math.max(22 * s, 10 * px), pad = 16 * s;
@@ -173,7 +173,7 @@ export function drawPause(ctx, game, W, H) {
   drawFact(ctx, game.pauseFact, W, H * (game.mobile ? 0.855 : 0.68), s, Math.min(W * 0.75, 860 * s));   // phones: below the STEER button
   // controller check: what the game is reading from the pad right now
   if (INPUT.pad.connected) {
-    const P = INPUT.pad, line = `CONTROLLER: STICK ${P.steer.toFixed(2)}   RT GAS ${(P.rt || 0).toFixed(2)}   LT BRAKE ${(P.lt || 0).toFixed(2)}   X/RB BOOST   B ESCORT${game.mobile ? "" : "   D-PAD RADIO"}`;
+    const P = INPUT.pad, line = `CONTROLLER: STICK ${P.steer.toFixed(2)}   RT GAS ${(P.rt || 0).toFixed(2)}   LT BRAKE ${(P.lt || 0).toFixed(2)}   X/RB BOOST   B ESCORT   D-PAD RADIO`;
     pixelText(ctx, line, W / 2, H - 34 * s, fitPx(line, Math.max(1, Math.round(1.8 * s)), W - 40 * s), "rgba(222,234,242,0.8)", { align: "center" });
   }
 }

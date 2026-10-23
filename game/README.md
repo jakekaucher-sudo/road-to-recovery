@@ -35,7 +35,7 @@ It prints an address like `https://192.168.50.148:8443/game/`. Open it on the ph
 | Re-center steering | — | — | ◎ button (hold the phone how you like, then tap) |
 | Music on / off | M | View button | — |
 | Helicopter escort (only after a time-up, once per try) | 1 | B | The pulsing **ESCORT** helicopter button above GAS |
-| Radio: previous / next station (computers only) | 4 / 5 | D-pad left / right | — |
+| Radio: previous / next station | 4 / 5 | D-pad left / right | Tap the radio button (under the stage panel, showing the station's logo) for the next station |
 
 **Controllers.** Any controller the browser reads as a standard gamepad works, including Xbox controllers over USB or Bluetooth on a computer, iPhone, iPad or Android. Press any button once so the browser notices it. The title screen then shows the controller layout, and crashes rumble where the controller supports it.
 
@@ -66,7 +66,7 @@ If tilting steers the wrong way on a particular device, add `?invertTilt=1` to t
 - **Jumps.** Stage 1 has a raised drawbridge across a river: come in fast to clear the gap ("BIG AIR" is worth 2 extra seconds); come in slow and the van still makes it across, with a rough landing that costs speed. Stage 2 has an optional car-carrier truck parked in the right lane with its ramp down: line up with the ramp to launch off it, or drive around it. Traffic pulls over before the drawbridge and keeps out of the ramp lane. The jumps are built in `src/track.js` and drawn by `src/three/jumps3d.js`.
 - **Nitrous.** Each boost fires blue nitrous flames from the exhaust, at any speed. With none left, the screen says so.
 - **Reading time.** The SBA fact at the bottom of the stage-start screen stays up long enough to read (by its length) before the countdown starts, with a bar showing the time left. Press Enter, A or tap to start sooner. Retries show a different fact each time, and the pause, results and time-up screens each show one too. Every fact is in `facts` in `config.js` with its source.
-- **The radio (computers only).** Press 4 / 5, or the D-pad left / right, to change stations while driving, as in open-world driving games. Static plays while the dial moves, a card with the station's logo shows which one you're on and fades once you settle, and each station keeps "broadcasting" while you're away, so it's further along when you come back. The game remembers your station. Stations: **Pulse 101.5** (the stage songs), **Big Sky 98.7** (country), **The Storm 104.1** (rock), **Heat 95.3** (hip hop), **La Isla 92.9** (Latin, with host GC), **Sunny 99.9** (pop), **Recovery Talk 1590 AM** (host Charlotte takes calls about SBA disaster help; the calls are dramatized and the facts are from SBA.gov) and Radio Off. All songs are instrumental. Phones keep the stage songs. Stations are in `radio` in `config.js`, the code is `src/radio.js`, and `tools/make_radio_audio.py` builds each station's audio.
+- **The radio.** Press 4 / 5, or the D-pad left / right, to change stations while driving, as in open-world driving games. On phones, tap the small radio button under the stage panel (it shows the station's logo) for the next station. Static plays while the dial moves, and a card shows which station you're on and fades once you settle (on phones a compact one beside the button that never covers the road or the distance bar, even on an iPhone SE), and each station keeps "broadcasting" while you're away, so it's further along when you come back. The game remembers your station. Stations: **Pulse 101.5** (the stage songs), **Big Sky 98.7** (country), **The Storm 104.1** (rock), **Heat 95.3** (hip hop), **La Isla 92.9** (Latin, with host GC), **Sunny 99.9** (pop), **Recovery Talk 1590 AM** (host Charlotte takes calls about SBA disaster help; the calls are dramatized and the facts are from SBA.gov) and Radio Off. All songs are instrumental. A station's audio only downloads when you tune to it, so phones use no extra data unless you change stations. Stations are in `radio` in `config.js`, the code is `src/radio.js`, and `tools/make_radio_audio.py` builds each station's audio.
 - **Ratings.** Each stop earns 1–3 stars for time left, stop accuracy and crashes. The ending shows all five recoveries, the total funds delivered and your rating out of 15.
 
 ## Facts and fiction
@@ -124,7 +124,7 @@ The jacket print is added in code and centred on the back automatically. The SBA
 
 ## Music
 
-Licensed from the owner's Artlist plan: French-house / electro tracks for each stage and the menus, and "Night Drive" for the intro and ending. "1993" starts just before its beat drop, skipping the spoken intro. The desktop radio adds instrumental country, rock, hip-hop, Latin and pop stations, and a talk station voiced with Artlist text-to-speech. The full list is in `audio/README.md`, and you can swap tracks in `config.js` → `music` and `radio`.
+Licensed from the owner's Artlist plan: French-house / electro tracks for each stage and the menus, and "Night Drive" for the intro and ending. "1993" starts just before its beat drop, skipping the spoken intro. The radio adds instrumental country, rock, hip-hop, Latin and pop stations, and a talk station voiced with Artlist text-to-speech. The full list is in `audio/README.md`, and you can swap tracks in `config.js` → `music` and `radio`.
 
 ## Graphics and smoothness
 
@@ -171,7 +171,7 @@ game/
   src/buildings.js      reusable restoration system: bakery, home, condo, garage, church, ...
   src/weather.js        weather presets (look + grip, wind, water, lightning)
   src/hud.js            timer, distance, speed gauge, boosts, roadmap, funds, messages, radio station card
-  src/radio.js          desktop radio: stations, tuning, station logos
+  src/radio.js          the radio: stations, tuning, station logos
   src/screens.js        title, briefing, restoration, results, time up, pause, ending
   src/intro.js          the DC intro cutscene
   src/outro.js          the ending cutscene

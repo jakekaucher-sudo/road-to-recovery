@@ -81,7 +81,7 @@ export function drawHUD(ctx, g, W, H, cfg) {
     const ax = wx + 20 * s; ctx.moveTo(ax - 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 26 * s * dir, wy - 6 * s); ctx.moveTo(ax + 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 26 * s * dir, wy + 18 * s); ctx.stroke();
   }
   drawEscort(ctx, g, W, H, cfg, s);
-  drawRadio(ctx, g, s);
+  drawRadio(ctx, g, s, W);
   // ---- centre messages
   for (const m of g.messages) {
     const a = clamp(Math.min(m.t / 0.15, (m.life - m.t) / 0.3), 0, 1);
@@ -90,10 +90,11 @@ export function drawHUD(ctx, g, W, H, cfg) {
   }
 }
 
-// ---- desktop radio: the station card while tuning, under the stage panel; it fades once the dial settles
-function drawRadio(ctx, g, s) {
+// ---- radio: the station card while tuning, under the stage panel; it fades once the dial settles
+function drawRadio(ctx, g, s, W) {
   const R = g.radio; if (!R || !R.enabled || R.shown > SHOW) return;
   const a = clamp(Math.min(R.shown / 0.12, (SHOW - R.shown) / 0.6), 0, 1), st = R.station, list = R.stations;
+  if (g.mobile) { if (g.radioBtn) drawRadioPhone(ctx, g, R, st, a, s, W); return; }
   const x = 12 * s, y = 118 * s, w = 330 * s, h = 164 * s;
   ctx.save(); ctx.globalAlpha = a;
   plate(ctx, x, y, w, h, 10 * s, "rgba(7,26,63,0.9)", st.color, 2);
@@ -115,6 +116,33 @@ function drawRadio(ctx, g, s) {
   // how to tune (blinks "TUNING" while the dial is between stations)
   const tuning = R.t < SETTLE + 0.3, hint = tuning ? "TUNING..." : INPUT.pad.connected ? "D-PAD LEFT / RIGHT TO TUNE" : "PRESS 4 / 5 TO TUNE";
   if (!tuning || Math.floor(R.t * 8) % 2 === 0) pixelText(ctx, hint, x + w / 2, y + h - 18 * s, Math.max(1, Math.round(1.6 * s)), tuning ? NEON : "rgba(222,234,242,0.7)", { align: "center" });
+  ctx.restore();
+}
+
+// Phones: a small card beside the radio button (which already shows the station's logo): name,
+// frequency and genre, the host or "dramatized" note, and how to tune when it pops up on its own.
+// Sized in the button's units so it stays readable on any phone, and kept left of the distance bar.
+function drawRadioPhone(ctx, g, R, st, a, s, W) {
+  const B = g.radioBtn, u = B.u, x = B.x + B.w + 8 * u, y = B.y, pad = 9 * u;
+  const room = Math.min(250 * u, W / 2 - 226 * s - 6 * u - x), inner = room - pad * 2;
+  let npx = Math.max(2, Math.round(2 * u)); while (npx > 1 && pixelWidth(st.name, npx) > inner) npx--;
+  const spx = Math.max(2, Math.round(1.35 * u)), fs = Math.round(11 * u);
+  const one = [st.freq, st.genre].filter(Boolean).join("   "), subs = pixelWidth(one, spx) <= inner ? [one] : [st.freq, st.genre];   // small phones: two lines
+  const sub = subs.filter(Boolean);
+  const tuning = R.t < SETTLE + 0.3, hint = tuning ? "TUNING..." : R.byTap ? "" : "TAP TO TUNE";
+  let w = Math.max(pixelWidth(st.name, npx), ...sub.map(l => pixelWidth(l, spx)), hint ? pixelWidth(hint, spx) : 0);
+  const notes = st.note ? wrapLines(ctx, st.note, fs, inner, { italic: true, weight: 400 }) : [];
+  notes.forEach(l => { ctx.font = `italic 400 ${fs}px Helvetica, Arial, sans-serif`; w = Math.max(w, ctx.measureText(l).width); });
+  w = Math.min(room, w + pad * 2);
+  const h = pad * 2 + 7 * npx + sub.length * (5 * u + 7 * spx) + notes.length * fs * 1.25 + (notes.length ? 3 * u : 0) + (hint ? 6 * u + 7 * spx : 0);
+  ctx.save(); ctx.globalAlpha = a;
+  plate(ctx, x, y, w, Math.max(h, B.h), 7 * u, "rgba(7,26,63,0.9)", st.color, 2);
+  let ty = y + pad;
+  neonText(ctx, st.name, x + pad, ty, npx, st.color); ty += 7 * npx;
+  sub.forEach(l => { ty += 5 * u; pixelText(ctx, l, x + pad, ty, spx, WHITE); ty += 7 * spx; });
+  if (notes.length) ty += 3 * u;
+  notes.forEach(l => { ty += fs * 1.25; text(ctx, l, x + pad, ty - fs * 0.25, fs, "rgba(222,234,242,0.85)", { italic: true, weight: 400 }); });
+  if (hint && (!tuning || Math.floor(R.t * 8) % 2 === 0)) { ty += 6 * u; pixelText(ctx, hint, x + pad, ty, spx, tuning ? NEON : "rgba(222,234,242,0.75)"); }
   ctx.restore();
 }
 

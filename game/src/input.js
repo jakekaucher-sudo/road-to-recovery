@@ -9,7 +9,7 @@ export const INPUT = {
   touchSteer: 0, lastGasTap: 0, keys: new Set(), any: false, calibrateRequest: false,
   steerMode: "tilt", notice: null,          // phones: "tilt" (motion sensor) or "drag" (slide a finger)
   pad: { connected: false, name: "", mapping: "", steer: 0, gas: 0, brake: 0, prev: [], axRest: {} },   // game controller (Xbox layout)
-  radioStep: 0,                             // -1 / +1 for one frame: change radio station (desktop)
+  radioStep: 0,                             // -1 / +1 for one frame: change radio station
 };
 // Remember the player's steering choice on this device.
 try { const m = localStorage.getItem("rtr-steer"); if (m === "tilt" || m === "drag") INPUT.steerMode = m; } catch (e) {}
@@ -38,7 +38,7 @@ export function initInput(canvas, ui) {
     if (e.code === "Enter" || e.code === "Space" || GAS.includes(e.code)) INPUT.confirmPressed = true;
     if (e.code === "KeyM") INPUT.mutePressed = true;
     if (e.code === "Digit1" || e.code === "Numpad1") INPUT.escortPressed = true;   // helicopter escort (when earned)
-    if (e.code === "Digit4" || e.code === "Numpad4") INPUT.radioStep = -1;           // radio: previous / next station (desktop)
+    if (e.code === "Digit4" || e.code === "Numpad4") INPUT.radioStep = -1;           // radio: previous / next station
     if (e.code === "Digit5" || e.code === "Numpad5") INPUT.radioStep = 1;
   });
   window.addEventListener("keyup", (e) => INPUT.keys.delete(e.code));
@@ -61,6 +61,10 @@ export function initInput(canvas, ui) {
   ui.pause && ui.pause.addEventListener("click", (e) => { e.preventDefault(); INPUT.pausePressed = true; });
   ui.recal && ui.recal.addEventListener("click", (e) => { e.preventDefault(); INPUT.calibrateRequest = true; });
   if (ui.heli) { const call = (e) => { e.preventDefault(); e.stopPropagation(); INPUT.escortPressed = true; }; ui.heli.addEventListener("touchstart", call, { passive: false }); ui.heli.addEventListener("click", call); }
+  if (ui.radio) {                                                       // phones: tap the radio for the next station
+    const tune = (e) => { e.preventDefault(); e.stopPropagation(); INPUT.radioStep = 1; ui.radio.classList.add("tap"); setTimeout(() => ui.radio.classList.remove("tap"), 120); };
+    ui.radio.addEventListener("touchstart", tune, { passive: false }); ui.radio.addEventListener("click", tune);
+  }
 
   // tap anywhere on the canvas = confirm (menus)
   canvas.addEventListener("touchstart", (e) => { INPUT.confirmPressed = true; INPUT.any = true; dragStart(e); }, { passive: true });
@@ -171,7 +175,7 @@ export function pollInput() {
 }
 // ---- game controller (Xbox, or any controller the browser maps to the standard layout) ----
 // Left stick: steer.  RT (or D-pad up): gas.  LT (or D-pad down): brake.  X (or RB): boost.  A: start / confirm.
-// B: helicopter escort (only after a time-up).  D-pad left / right: radio station (desktop).
+// B: helicopter escort (only after a time-up).  D-pad left / right: radio station.
 // Browsers that do not give the controller the standard layout (e.g. Firefox on a Mac, some third-party
 // pads) report the triggers as axes resting at -1 instead of buttons 6 and 7; both are read.
 // Menu (Start): pause.  View (Back): music on/off.

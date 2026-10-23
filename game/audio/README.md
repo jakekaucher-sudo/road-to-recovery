@@ -29,7 +29,7 @@ Built by `tools/make_escort_audio.py` from Artlist sound effects (downloaded unw
 
 Engine sound and other effects are generated live with the Web Audio API in `src/audio.js`.
 
-## Desktop radio
+## Radio
 
 Built by `tools/make_radio_audio.py` from instrumental Artlist tracks (downloaded unwatermarked on 2026-10-22 and 2026-10-23, originals in `source/radio/`). Each station is one looping file. Every song is matched to the loudness of the stage music with a peak limiter, so switching stations never jumps in volume. Pulse 101.5 plays the stage songs listed above.
 

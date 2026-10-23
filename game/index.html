@@ -39,6 +39,12 @@
   #heliBtn svg { width: 44px; height: 24px; }
   @keyframes heliPulse { 50% { box-shadow: 0 0 28px rgba(236,196,68,0.95); transform: scale(1.06); } }
   body.mobile.racing.escortready #heliBtn { display: flex; }
+  /* radio button: phones, under the stage panel (placed by src/main.js); shows the station's logo, tap for the next one */
+  #radioBtn { display: none; position: fixed; z-index: 5; left: 12px; top: 62px; width: 46px; height: 46px; padding: 0; border-radius: 11px; border: 2px solid #ECC444; background: rgba(14,46,106,0.72);
+    overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.35); -webkit-tap-highlight-color: transparent; }
+  #radioBtn img { width: 100%; height: 100%; display: block; pointer-events: none; }
+  #radioBtn.tap { transform: scale(0.9); }
+  body.mobile.racing #radioBtn { display: block; }
   #rotate { display: none; position: fixed; inset: 0; z-index: 10; background: #040C24; color: #ECC444; align-items: center; justify-content: center; text-align: center; font: 800 20px Helvetica, Arial; letter-spacing: 2px; padding: 30px; }
   body.mobile.portrait #rotate { display: flex; flex-direction: column; } body.mobile.portrait.anyway #rotate { display: none; }
   #anyway { margin-top: 26px; padding: 12px 20px; border: 2px solid #ECC444; border-radius: 10px; background: transparent; color: #ECC444; font: 800 14px Helvetica, Arial; letter-spacing: 1px; }
@@ -54,6 +60,7 @@
 <button id="pauseBtn" aria-label="Pause">II</button>
 <button id="recal" aria-label="Re-center steering">&#9678;</button>
 <button id="steerBtn" type="button" aria-label="Switch steering between tilt and drag">STEER: TILT</button>
+<button id="radioBtn" type="button" aria-label="Change radio station"><img alt=""></button>
 <button id="heliBtn" type="button" aria-label="Call the helicopter escort"><svg viewBox="0 0 64 34" aria-hidden="true"><path fill="currentColor" d="M3 3h58v3H3zM30 6h4v6h-4zM12 15c0-3 4-4 9-4h13c7 0 12 3 14 8l1 3H21c-5 0-9-3-9-7zM48 17l13-5v4l-12 5zM20 25h3v5h-3zM38 25h3v5h-3zM13 30h33v2.5H13z"/><path fill="#0E2E6A" d="M15 15h6v4h-6z"/></svg>ESCORT</button>
 </div>
 <div id="rotate">ROTATE YOUR PHONE<br>TO LANDSCAPE<br><br><span id="steerHint" style="font-size:14px;color:#DEEAF2">The game plays sideways</span><button id="anyway" type="button" onclick="document.body.classList.add('anyway')">PLAY IN PORTRAIT</button></div>

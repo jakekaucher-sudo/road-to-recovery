@@ -124,9 +124,9 @@ export const CONFIG = {
     volume: 0.55,
   },
 
-  // ---- Desktop radio (src/radio.js): D-pad left / right or keys 4 / 5 while driving. Phones keep the
-  // stage songs. Songs are instrumental Artlist tracks, voices are Artlist text-to-speech, and each
-  // station is built by tools/make_radio_audio.py (see audio/README.md). url null = the stage's own song.
+  // ---- Radio (src/radio.js): D-pad left / right or keys 4 / 5 while driving; on phones, tap the radio
+  // button under the stage panel. Songs are instrumental Artlist tracks, voices are Artlist text-to-speech,
+  // and each station is built by tools/make_radio_audio.py (see audio/README.md). url null = the stage's own song.
   radio: {
     stations: [
       { id: "pulse", name: "PULSE", freq: "101.5 FM", genre: "ELECTRONIC", color: "#5CC8FF", url: null },

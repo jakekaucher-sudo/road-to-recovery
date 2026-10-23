@@ -28,7 +28,7 @@ export class Game {
     this.camX = 0; this.camShakeY = 0; this.parallax = 0; this.flash = 0; this.bolt = null; this.nextBolt = 3;
     this.yaw = 0; this.roll = 0; this.hitFx = 0; this.shake = 0; this.windNow = 0;
     this.escort = { ready: false, active: false, t: 0, out: -1, k: 0 }; this.escortEarned = false;
-    this.radio = new Radio(cfg, audio, !mobile);
+    this.radio = new Radio(cfg, audio, true);
     this.loadStage(0);
   }
 
@@ -303,7 +303,7 @@ export class Game {
     const M = this.cfg.music; if (!M || !this.audio.ctx) return;
     let url = null, seek = null;
     if (["title", "briefing", "ending"].includes(this.state)) url = M.menu;
-    else if (RADIO_STATES.has(this.state)) {                            // the stage's song, or the desktop radio station (null while tuning)
+    else if (RADIO_STATES.has(this.state)) {                            // the stage's song, or the radio station (null while tuning)
       const p = this.radio.pick(M.stages[this.stageIndex % M.stages.length]); if (p) { url = p.url; seek = p.seek; }
     }
     if (url !== this.audio.musicUrl) { this.audio.playMusic(url, M.volume, seek); if (url) this.radio.fresh = false; }

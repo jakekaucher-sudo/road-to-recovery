@@ -1,8 +1,8 @@
-// Desktop car radio, the way open-world driving games do it: D-pad left / right or keys 4 / 5 step
-// through the stations, static plays while the dial moves, and the station card fades once you
-// settle. Each station is one looping file on its own clock, so coming back to a station finds it
-// further along, as if it kept broadcasting. PULSE plays each stage's own song. Phones keep the
-// stage songs and never show the radio.
+// Car radio, the way open-world driving games do it: D-pad left / right or keys 4 / 5 step through
+// the stations (phones: tap the radio button under the stage panel), static plays while the dial
+// moves, and the station card fades once you settle. Each station is one looping file on its own
+// clock, so coming back to a station finds it further along, as if it kept broadcasting. PULSE plays
+// each stage's own song. A station's file only downloads when you tune to it.
 import { rrect } from "./util.js";
 export const SETTLE = 0.45;     // seconds on a station before it tunes in
 export const SHOW = 2.6;        // seconds the card stays up after the last change
@@ -18,11 +18,11 @@ export class Radio {
   get station() { return this.stations[this.i]; }
   step(dir) {
     if (!this.enabled) return;
-    const n = this.stations.length; this.i = (this.i + dir + n) % n; this.t = 0; this.shown = 0; this.fresh = true;
+    const n = this.stations.length; this.i = (this.i + dir + n) % n; this.t = 0; this.shown = 0; this.fresh = true; this.byTap = true;
     this.audio.radioStatic();
     try { localStorage.setItem("rtr.radio", this.station.id); } catch (e) { }
   }
-  show() { if (this.enabled) this.shown = 0; }                       // the card pops up when a drive starts
+  show() { if (this.enabled) { this.shown = 0; this.byTap = false; } }   // the card pops up when a drive starts
   update(dt) { this.t += dt; this.shown += dt; }
   // What should play over the stage songs: { url, seek } (seek: where to start, given the file's
   // length), or null while the dial is still moving. `stageUrl` is the stage's own song.
