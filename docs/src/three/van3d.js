@@ -175,6 +175,28 @@ export function buildVan(art, quality) {
   // headlight beam pools on the road (cheap fake lighting)
   const pool = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 14), new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffe6b0, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
   pool.rotation.x = -Math.PI / 2; pool.position.set(0, 0.06, -L / 2 - 7); root.add(pool);
+  // ---- nitrous: twin blue flames out of the exhausts under the rear bumper (shown while boosting)
+  const flameTex = (() => {
+    const c = document.createElement("canvas"); c.width = 64; c.height = 256; const g = c.getContext("2d");
+    const v = g.createLinearGradient(0, 256, 0, 0);                       // nozzle at the bottom of the canvas
+    v.addColorStop(0, "rgba(255,255,255,1)"); v.addColorStop(0.12, "rgba(190,240,255,1)"); v.addColorStop(0.35, "rgba(70,150,255,0.9)");
+    v.addColorStop(0.7, "rgba(120,60,255,0.45)"); v.addColorStop(1, "rgba(80,40,200,0)");
+    g.fillStyle = v; g.fillRect(0, 0, 64, 256);
+    g.globalCompositeOperation = "destination-in"; const h = g.createLinearGradient(0, 0, 64, 0);
+    h.addColorStop(0, "rgba(0,0,0,0)"); h.addColorStop(0.5, "rgba(0,0,0,1)"); h.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = h; g.fillRect(0, 0, 64, 256);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const flameMat = new THREE.MeshBasicMaterial({ map: flameTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, opacity: 0, fog: false });
+  const coreMat = flameMat.clone(); coreMat.color.set(0xd8f4ff);
+  const flameGeo = new THREE.PlaneGeometry(0.62, 2.7).translate(0, 1.35, 0).rotateX(Math.PI / 2), coreGeo = new THREE.PlaneGeometry(0.28, 1.25).translate(0, 0.625, 0).rotateX(Math.PI / 2);
+  const flames = [-1, 1].map(sx => {
+    const g = new THREE.Group(); g.position.set(sx * W * 0.27, H * 0.13, L / 2 + 0.06); root.add(g);
+    for (const r of [0, Math.PI / 2]) { const a = new THREE.Mesh(flameGeo, flameMat); a.rotation.z = r; g.add(a); const b = new THREE.Mesh(coreGeo, coreMat); b.rotation.z = r; g.add(b); }
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 12), new THREE.MeshLambertMaterial({ color: 0x9aa0a6 })); pipe.rotation.x = Math.PI / 2; pipe.position.z = -0.06; g.add(pipe);
+    const glow = mkGlow(0x6fb8ff, 1.4); glow.position.copy(g.position); glow.position.z += 0.25; return { g, glow };
+  });
+  const nosLight = quality.high ? new THREE.PointLight(0x4f8dff, 0, 7, 1.6) : null; if (nosLight) { nosLight.position.set(0, 0.5, L / 2 + 0.8); root.add(nosLight); }
+
   // soft contact shadow
   const blob = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.6, L * 1.25), new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, opacity: 0.9 }));
   blob.rotation.x = -Math.PI / 2; blob.position.y = 0.04; root.add(blob);
@@ -189,7 +211,13 @@ export function buildVan(art, quality) {
       tail.forEach(t => { t.material.opacity = Math.min(1, tailA) * 0.8; t.scale.setScalar(0.5 + 0.45 * st.brake); });
       brakeTop.material.opacity = st.brake * 0.9;
       heads.forEach(h => h.material.opacity = 0.08 + 0.7 * st.night);
-      pool.material.opacity = 0.32 * st.night;
+      pool.material.opacity = 0.32 * st.night * (st.air > 1 ? 0 : 1);
+      // nitrous flames: length flickers, a hot pop as it lights
+      const nos = st.boost || 0;
+      flameMat.opacity = coreMat.opacity = Math.min(1, nos * 1.4);
+      flames.forEach(f => { f.g.visible = nos > 0.02; const k = nos * (0.75 + Math.random() * 0.55) * (1 + (st.boostPop || 0) * 0.8); f.g.scale.set(0.8 + nos * 0.4, 0.8 + nos * 0.4, k); f.glow.material.opacity = nos * (0.75 + Math.random() * 0.25); f.glow.scale.setScalar(0.9 + nos * 1.1); });
+      if (nosLight) nosLight.intensity = nos * (4 + Math.random() * 2);
+      const air = st.air || 0; blob.position.y = 0.04 - air; pool.position.y = 0.06 - air; blob.material.opacity = 0.9 * Math.max(0.15, 1 - air / 9);   // the shadow stays on the road
     },
   };
 }

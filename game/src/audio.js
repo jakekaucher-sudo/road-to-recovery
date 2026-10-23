@@ -72,9 +72,10 @@ export class Audio {
   setMuted(m) { this.muted = m; if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.8, this.ctx.currentTime, 0.05); }
   toggleMute() { this.setMuted(!this.muted); return this.muted; }
   setMusic(on) { /* procedural loop retired; licensed tracks via playMusic() */ }
-  playMusic(url, volume = 0.55) {
+  // seek(duration) -> where to start, for radio stations that are already part-way through their loop
+  playMusic(url, volume = 0.55, seek = null) {
     if (!this.ctx || this.musicUrl === url) return;
-    this.musicUrl = url;
+    this.musicUrl = url; const tok = this._tok = (this._tok || 0) + 1;
     if (!this.mel) {
       this.mel = document.createElement("audio"); this.mel.loop = true; this.mel.preload = "auto"; this.mel.setAttribute("playsinline", "");
       this.mgain = this.ctx.createGain(); this.mgain.gain.value = 0; this.ctx.createMediaElementSource(this.mel).connect(this.mgain); this.mgain.connect(this.master);
@@ -84,10 +85,27 @@ export class Audio {
     clearTimeout(this._mt);
     this._mt = setTimeout(() => {
       if (!url) { this.mel.pause(); return; }
-      this.mel.src = url; this.mel.currentTime = 0;
+      this.mel.src = url;
+      if (seek) this.mel.addEventListener("loadedmetadata", () => { const d = this.mel.duration; if (tok === this._tok && isFinite(d) && d > 1) this.mel.currentTime = seek(d); }, { once: true });
+      else this.mel.currentTime = 0;
       const p = this.mel.play(); if (p && p.catch) p.catch(() => {});
       const t2 = this.ctx.currentTime; g.cancelScheduledValues(t2); g.setValueAtTime(0, t2); g.linearRampToValueAtTime(volume, t2 + 0.8);
     }, url ? 380 : 360);
+  }
+  // Radio dial static: band-passed noise with a faint whistle sweeping past, held while the next
+  // station tunes in. Each turn of the dial restarts it.
+  radioStatic() {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime;
+    if (this._static) { try { this._static.forEach(n => n.stop(t + 0.01)); } catch (e) { } }
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), o = c.createOscillator(), og = c.createGain();
+    s.buffer = this.noise; s.loop = true; s.playbackRate.value = 0.8 + Math.random() * 0.3;
+    f.type = "bandpass"; f.Q.value = 0.8; f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(1100, t + 0.9);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.2, t + 0.015); g.gain.setValueAtTime(0.2, t + 0.45); g.gain.linearRampToValueAtTime(0, t + 1.05);
+    s.connect(f); f.connect(g); g.connect(this.sfx); s.start(t, Math.random() * 0.5); s.stop(t + 1.1);
+    o.type = "sine"; o.frequency.setValueAtTime(1500 + Math.random() * 1200, t); o.frequency.exponentialRampToValueAtTime(500, t + 0.45);
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.02, t + 0.05); og.gain.linearRampToValueAtTime(0, t + 0.45);
+    o.connect(og); og.connect(this.sfx); o.start(t); o.stop(t + 0.5);
+    this._static = [s, o];
   }
   pauseMusic(p) { if (this.mel) { if (p) this.mel.pause(); else if (this.musicUrl) this.mel.play().catch(() => {}); } }
   engine(speedK, on, boost) {

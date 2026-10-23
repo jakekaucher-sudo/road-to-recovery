@@ -2,21 +2,26 @@
 // markings, curbs, ground detail, soft blob shadow, glow sprite, chevrons.
 import * as THREE from "three";
 
+// Set once by the engine: the GPU's best anisotropic filtering, and 2x texture detail on desktops.
+let ANISO = 8, SCALE = 1;
+export function setTextureQuality(aniso, scale) { ANISO = aniso; SCALE = scale; }
+
 function canvasTex(w, h, draw, opts = {}) {
-  const c = document.createElement("canvas"); c.width = w; c.height = h;
-  draw(c.getContext("2d"), w, h);
+  const k = opts.detail ? SCALE : 1, c = document.createElement("canvas"); c.width = w * k; c.height = h * k;
+  const g = c.getContext("2d"); g.scale(k, k); draw(g, w, h, k);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = opts.linear ? THREE.NoColorSpace : THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = opts.clamp ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping;
-  t.anisotropy = opts.aniso || 8;
+  t.anisotropy = opts.aniso || ANISO;
   return t;
 }
 const rnd = (() => { let s = 1234567; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
 export function asphaltTexture() {
-  return canvasTex(512, 1024, (g, w, h) => {
+  return canvasTex(512, 1024, (g, w, h, k) => {
     g.fillStyle = "#4a4d52"; g.fillRect(0, 0, w, h);
     for (let i = 0; i < 26000; i++) { const v = 60 + rnd() * 50; g.fillStyle = `rgba(${v},${v},${v + 4},${0.25 + rnd() * 0.3})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
+    if (k > 1) for (let i = 0; i < 60000; i++) { const v = 50 + rnd() * 70; g.fillStyle = `rgba(${v},${v},${v + 3},${0.18 + rnd() * 0.25})`; g.fillRect(rnd() * w, rnd() * h, 0.5, 0.5); }   // fine aggregate, desktops
     // tyre wear in each lane
     for (const lane of [1 / 6, 3 / 6, 5 / 6]) for (const o of [-0.07, 0.07]) { g.fillStyle = "rgba(20,22,26,0.18)"; g.fillRect((lane + o) * w - 18, 0, 36, h); }
     // patches and cracks
@@ -26,7 +31,7 @@ export function asphaltTexture() {
     // edge lines (solid white) and lane dashes
     g.fillStyle = "#e9e6dc"; g.fillRect(10, 0, 12, h); g.fillRect(w - 22, 0, 12, h);
     g.fillStyle = "#e9e6dc"; for (const f of [1 / 3, 2 / 3]) for (let y = 0; y < h; y += 512) g.fillRect(f * w - 6, y + 40, 12, 300);
-  });
+  }, { detail: true });
 }
 export function curbTexture() {
   return canvasTex(64, 256, (g, w, h) => { for (let i = 0; i < 4; i++) { g.fillStyle = i % 2 ? "#e8e8e4" : "#c3282e"; g.fillRect(0, i * h / 4, w, h / 4); } g.fillStyle = "rgba(0,0,0,0.12)"; g.fillRect(0, 0, 6, h); });
@@ -36,7 +41,7 @@ export function groundTexture() {
     g.fillStyle = "#808080"; g.fillRect(0, 0, w, h);
     for (let i = 0; i < 9000; i++) { const v = 90 + rnd() * 90; g.fillStyle = `rgba(${v},${v},${v},0.35)`; const s = 1 + rnd() * 3; g.fillRect(rnd() * w, rnd() * h, s, s * (1 + rnd() * 3)); }
     for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(${100 + rnd() * 60},${100 + rnd() * 60},${100 + rnd() * 60},0.18)`; g.beginPath(); g.ellipse(rnd() * w, rnd() * h, 20 + rnd() * 60, 10 + rnd() * 40, rnd() * 3, 0, Math.PI * 2); g.fill(); }
-  });
+  }, { detail: true });
 }
 export function blobTexture() {
   return canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, "rgba(0,0,0,0.75)"); gr.addColorStop(0.6, "rgba(0,0,0,0.4)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, { clamp: true });

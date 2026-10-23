@@ -26,15 +26,16 @@ It prints an address like `https://192.168.50.148:8443/game/`. Open it on the ph
 
 | Action | Keyboard | Xbox controller | Phone / tablet |
 |---|---|---|---|
-| Steer | ← → (or A / D) | Left stick (or D-pad) | Tilt the phone left / right like a steering wheel, or drag left / right (switch with the **STEER** button on the title or pause screen) |
+| Steer | ← → (or A / D) | Left stick | Tilt the phone left / right like a steering wheel, or drag left / right (switch with the **STEER** button on the title or pause screen) |
 | Gas | ↑ (or W) | RT (right trigger), or D-pad up | Hold the round **GAS** button (right) |
 | Brake | Space, C, ↓ (or S) | LT (left trigger), or D-pad down | Hold the round **BRAKE** button (left) |
-| Boost (3 per stage) | X or Shift | X (or RB) | Double-tap GAS |
-| Start / confirm / skip a cutscene | Enter | A | Tap |
+| Nitrous boost (3 per stage, any speed) | X or Shift | X (or RB) | Double-tap GAS |
+| Start / confirm / skip a cutscene / done reading the fact | Enter | A | Tap |
 | Pause | P or Esc | Menu button | ❚❚ button |
 | Re-center steering | — | — | ◎ button (hold the phone how you like, then tap) |
 | Music on / off | M | View button | — |
 | Helicopter escort (only after a time-up, once per try) | 1 | B | The pulsing **ESCORT** helicopter button above GAS |
+| Radio: previous / next station (computers only) | 4 / 5 | D-pad left / right | — |
 
 **Controllers.** Any controller the browser reads as a standard gamepad works, including Xbox controllers over USB or Bluetooth on a computer, iPhone, iPad or Android. Press any button once so the browser notices it. The title screen then shows the controller layout, and crashes rumble where the controller supports it.
 
@@ -62,6 +63,10 @@ If tilting steers the wrong way on a particular device, add `?invertTilt=1` to t
 - **Stop in the gold zone.** Signs count down 1500, 1000 and 500 feet to a neon RECOVERY STOP gate. Brake to a stop in the glowing gold zone to deliver help. Stopping near the middle scores better. If you overshoot, the van backs up and you lose a star.
 - **Watch the place recover.** The stop then restores in stages: debris, damage, materials, windows, signage and lights.
 - **Hidden bonus: the SBA helicopter escort.** Run out of time and the time-up screen says an escort is standing by. On the retry, press **1** (keyboard), **B** (Xbox) or tap the **ESCORT** helicopter button (phones). Pilot Sam comes on the radio ("Looks like you need some help, partner. Follow me!") and an SBA Black Hawk in the van's paint swoops in overhead and leads the van for 12 seconds. Its downwash blows the rain, wind and dust away, pushes traffic out to the shoulders and blasts road debris off the road. One escort per try; it is gone once the stage is cleared. Settings are in `escort` in `config.js`; the helicopter is `src/three/heli3d.js` (built in code like the van, paint from the van's official artwork) and `dev/heli.html` is a turntable for it.
+- **Jumps.** Stage 1 has a raised drawbridge across a river: come in fast to clear the gap ("BIG AIR" is worth 2 extra seconds); come in slow and the van still makes it across, with a rough landing that costs speed. Stage 2 has an optional car-carrier truck parked in the right lane with its ramp down: line up with the ramp to launch off it, or drive around it. Traffic pulls over before the drawbridge and keeps out of the ramp lane. The jumps are built in `src/track.js` and drawn by `src/three/jumps3d.js`.
+- **Nitrous.** Each boost fires blue nitrous flames from the exhaust, at any speed. With none left, the screen says so.
+- **Reading time.** The SBA fact at the bottom of the stage-start screen stays up long enough to read (by its length) before the countdown starts, with a bar showing the time left. Press Enter, A or tap to start sooner. Retries show a different fact each time, and the pause, results and time-up screens each show one too. Every fact is in `facts` in `config.js` with its source.
+- **The radio (computers only).** Press 4 / 5, or the D-pad left / right, to change stations while driving, as in open-world driving games. Static plays while the dial moves, a card with the station's logo shows which one you're on and fades once you settle, and each station keeps "broadcasting" while you're away, so it's further along when you come back. The game remembers your station. Stations: **Pulse 101.5** (the stage songs), **Big Sky 98.7** (country), **The Storm 104.1** (rock), **Heat 95.3** (hip hop), **La Isla 92.9** (Latin, with host GC), **Sunny 99.9** (pop), **Recovery Talk 1590 AM** (host Charlotte takes calls about SBA disaster help; the calls are dramatized and the facts are from SBA.gov) and Radio Off. All songs are instrumental. Phones keep the stage songs. Stations are in `radio` in `config.js`, the code is `src/radio.js`, and `tools/make_radio_audio.py` builds each station's audio.
 - **Ratings.** Each stop earns 1–3 stars for time left, stop accuracy and crashes. The ending shows all five recoveries, the total funds delivered and your rating out of 15.
 
 ## Facts and fiction
@@ -119,7 +124,11 @@ The jacket print is added in code and centred on the back automatically. The SBA
 
 ## Music
 
-Licensed from the owner's Artlist plan: French-house / electro tracks for each stage and the menus, and "Night Drive" for the intro and ending. "1993" starts just before its beat drop, skipping the spoken intro. The full list is in `audio/README.md`, and you can swap tracks in `config.js` → `music`.
+Licensed from the owner's Artlist plan: French-house / electro tracks for each stage and the menus, and "Night Drive" for the intro and ending. "1993" starts just before its beat drop, skipping the spoken intro. The desktop radio adds instrumental country, rock, hip-hop, Latin and pop stations, and a talk station voiced with Artlist text-to-speech. The full list is in `audio/README.md`, and you can swap tracks in `config.js` → `music` and `radio`.
+
+## Graphics and smoothness
+
+Computers draw the 3D scene at up to twice the screen's resolution, with multisample anti-aliasing, bloom, 2048-pixel shadows and full anisotropic filtering on the road. The starting sharpness is picked from the screen size: measured on an Apple M4 in Chrome, a 13" Retina screen holds 60 fps at 2x resolution with 2x MSAA, and a 16" one at 1.75x with 2x MSAA. If frames start dropping (more than 4 in 2 seconds), the game steps down one level at a time: resolution, then anti-aliasing, then bloom, then shadows. It never steps back up mid-game, because trying a sharper level costs a visible stutter. Screens faster than 60 Hz draw at a steady 60 fps, since the physics runs at 60 Hz. Phones start at 1.5x resolution and step down the same way. The code is in `src/three/engine3d.js`.
 
 ## Testing tools
 
@@ -150,17 +159,19 @@ game/
   src/main.js           boot, loop, screen dispatch, test hooks
   src/game.js           state machine, driving physics, collisions, traffic, delivery, scoring
   src/track.js          seeded stage tracks: curves, hills, scenery, hazards, pickups, traffic, stop zone
-  src/three/engine3d.js     WebGL renderer, quality tiers, adaptive resolution, bloom
+  src/three/engine3d.js     WebGL renderer, quality ladder (resolution, MSAA, bloom, shadows), dropped-frame watch
   src/three/world3d.js     builds each stage in 3D and syncs it to the game every frame; camera rig
   src/three/van3d.js       the 3D van built from the real artwork
-  src/three/road3d.js      road, curbs, terrain, water patches, delivery zone
+  src/three/road3d.js      road, curbs, terrain, water patches, delivery zone, the river under the drawbridge
+  src/three/jumps3d.js     the drawbridge (stage 1) and the car-carrier ramp (stage 2)
   src/three/props3d.js     low-poly scenery, hazards, pickups and traffic geometry
   src/three/fx3d.js        rain, particles, flying debris, lightning, tornado, ocean, floodwater
   src/three/sky.js, look.js, space.js, textures.js, title3d.js
   src/render.js, sprites.js, van.js   2D drawing kept for menu backgrounds
   src/buildings.js      reusable restoration system: bakery, home, condo, garage, church, ...
   src/weather.js        weather presets (look + grip, wind, water, lightning)
-  src/hud.js            timer, distance, speed gauge, boosts, roadmap, funds, messages
+  src/hud.js            timer, distance, speed gauge, boosts, roadmap, funds, messages, radio station card
+  src/radio.js          desktop radio: stations, tuning, station logos
   src/screens.js        title, briefing, restoration, results, time up, pause, ending
   src/intro.js          the DC intro cutscene
   src/outro.js          the ending cutscene
@@ -175,7 +186,8 @@ game/
   vendor/three/         Three.js r170 and the add-ons used
   dev/van.html          a test page that shows the 3D van alone
   dev/props.html        a test page that lines up every variant of a scenery prop (?kind=house)
-  tools/serve.py, tools/serve_https.py, tools/playtest.py, tools/capture.py
+  tools/serve.py, tools/serve_https.py, tools/playtest.py, tools/capture.py, tools/rangehttp.py (lets audio start part-way through)
+  tools/make_radio_audio.py builds the radio stations from audio/source/radio/
   tools/build_artifact.py   packages the game into dist/ for the Claude app
 ```
 

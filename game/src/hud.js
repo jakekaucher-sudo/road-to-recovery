@@ -4,6 +4,7 @@ import { VIEW } from "./orient.js";
 import { INPUT } from "./input.js";
 import { clamp, fmtMoney, plate, rrect, text, hexA, wrapLines, fitSize } from "./util.js";
 import { pixelText, pixelWidth } from "./pixelfont.js";
+import { stationLogo, SETTLE, SHOW } from "./radio.js";
 
 const GOLD = "#ECC444", NAVY = "#0E2E6A", WHITE = "#FEFEFE", RED = "#CD2127", NEON = "#5CC8FF", GREEN = "#3C7C54";
 
@@ -69,7 +70,7 @@ export function drawHUD(ctx, g, W, H, cfg) {
     ctx.fillStyle = on ? NEON : "rgba(92,200,255,0.18)";
     ctx.beginPath(); ctx.moveTo(bx2 - 12 * s, by2); ctx.lineTo(bx2, by2 - 10 * s); ctx.lineTo(bx2 + 12 * s, by2); ctx.lineTo(bx2, by2 + 10 * s); ctx.closePath(); ctx.fill();
   }
-  pixelText(ctx, g.mobile ? "2X TAP GAS = BOOST" : "X / SHIFT = BOOST", gx, gy + 58 * s, Math.max(1, Math.round(1.6 * s)), "rgba(222,234,242,0.75)", { align: "center" });
+  pixelText(ctx, g.mobile ? "2X TAP GAS = BOOST" : INPUT.pad.connected ? "X / RB = BOOST" : "X / SHIFT = BOOST", gx, gy + 58 * s, Math.max(1, Math.round(1.6 * s)), "rgba(222,234,242,0.75)", { align: "center" });
 
   // ---- wind indicator
   if (Math.abs(g.windNow) > 0.12) {
@@ -80,12 +81,41 @@ export function drawHUD(ctx, g, W, H, cfg) {
     const ax = wx + 20 * s; ctx.moveTo(ax - 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 26 * s * dir, wy - 6 * s); ctx.moveTo(ax + 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 26 * s * dir, wy + 18 * s); ctx.stroke();
   }
   drawEscort(ctx, g, W, H, cfg, s);
+  drawRadio(ctx, g, s);
   // ---- centre messages
   for (const m of g.messages) {
     const a = clamp(Math.min(m.t / 0.15, (m.life - m.t) / 0.3), 0, 1);
     const y = H * (m.y ?? 0.3) - (1 - a) * 12 * s;
     neonText(ctx, m.text, W / 2, y, Math.round((m.size || 5) * s), m.color || GOLD, { align: "center", alpha: a });
   }
+}
+
+// ---- desktop radio: the station card while tuning, under the stage panel; it fades once the dial settles
+function drawRadio(ctx, g, s) {
+  const R = g.radio; if (!R || !R.enabled || R.shown > SHOW) return;
+  const a = clamp(Math.min(R.shown / 0.12, (SHOW - R.shown) / 0.6), 0, 1), st = R.station, list = R.stations;
+  const x = 12 * s, y = 118 * s, w = 330 * s, h = 164 * s;
+  ctx.save(); ctx.globalAlpha = a;
+  plate(ctx, x, y, w, h, 10 * s, "rgba(7,26,63,0.9)", st.color, 2);
+  // the dial: every station's logo in a row, the one you are on lit up and underlined
+  const cell = (w - 24 * s) / list.length, big = cell * 0.86;
+  list.forEach((o, i) => {
+    const on = i === R.i, sz = on ? big : big * 0.74, cx = x + 12 * s + cell * (i + 0.5);
+    ctx.globalAlpha = a * (on ? 1 : 0.42); ctx.drawImage(stationLogo(o), cx - sz / 2, y + 10 * s + (big - sz) / 2, sz, sz);
+    if (on) { ctx.fillStyle = st.color; ctx.fillRect(cx - sz * 0.36, y + 14 * s + big, sz * 0.72, 3 * s); }
+  });
+  ctx.globalAlpha = a;
+  const L = 64 * s, ly = y + 26 * s + big, tx = x + 26 * s + L, room = x + w - 14 * s - tx;
+  ctx.drawImage(stationLogo(st), x + 14 * s, ly, L, L);
+  let px = Math.max(1, Math.round(3 * s)); while (px > 1 && pixelWidth(st.name, px) > room) px--;
+  neonText(ctx, st.name, tx, ly + 4 * s, px, st.color);
+  const sub = [st.freq, st.genre].filter(Boolean).join("   ");
+  if (sub) pixelText(ctx, sub, tx, ly + 34 * s, Math.max(1, Math.round(1.8 * s)), WHITE);
+  if (st.note) { const fs = Math.round(13 * s); wrapLines(ctx, st.note, fs, room, { italic: true, weight: 400 }).slice(0, 2).forEach((l, i) => text(ctx, l, tx, ly + 64 * s + i * fs * 1.25, fs, "rgba(222,234,242,0.85)", { italic: true, weight: 400 })); }
+  // how to tune (blinks "TUNING" while the dial is between stations)
+  const tuning = R.t < SETTLE + 0.3, hint = tuning ? "TUNING..." : INPUT.pad.connected ? "D-PAD LEFT / RIGHT TO TUNE" : "PRESS 4 / 5 TO TUNE";
+  if (!tuning || Math.floor(R.t * 8) % 2 === 0) pixelText(ctx, hint, x + w / 2, y + h - 18 * s, Math.max(1, Math.round(1.6 * s)), tuning ? NEON : "rgba(222,234,242,0.7)", { align: "center" });
+  ctx.restore();
 }
 
 // ---- helicopter escort: ready badge, Sam's radio call, escort countdown
@@ -149,7 +179,7 @@ export function drawStageIntro(ctx, g, W, H, cfg, t) {
   plate(ctx, W / 2 - pw / 2 - (1 - k) * W, H * 0.2, pw, 110 * s, 12 * s, "rgba(7,26,63,0.92)", GOLD, 3);
   neonText(ctx, label, W / 2 - (1 - k) * W, H * 0.2 + 22 * s, px, GOLD, { align: "center" });
   pixelText(ctx, reach, W / 2 - (1 - k) * W, H * 0.2 + 76 * s, rpx, WHITE, { align: "center" });
-  const fact = cfg.facts[st.fact];
+  const fact = cfg.facts[g.factIdx ?? st.fact];
   if (fact) {
     // on phones the GAS / BRAKE buttons sit in the bottom corners: keep the words between them
     const k = W / Math.max(1, VIEW.w), side = g.mobile ? 128 * k : 24 * s, maxW = W - side * 2;
@@ -157,5 +187,11 @@ export function drawStageIntro(ctx, g, W, H, cfg, t) {
     const bh = 22 * s + ls.length * fs * 1.25 + ss * 1.6 + 8 * s; ctx.fillStyle = "rgba(14,46,106,0.95)"; ctx.fillRect(0, H - bh, W, bh); ctx.fillStyle = GOLD; ctx.fillRect(0, H - bh, W, 3 * s);
     ls.forEach((l, i) => text(ctx, l, W / 2, H - bh + 14 * s + fs + i * fs * 1.25, fs, WHITE, { align: "center", weight: 500 }));
     text(ctx, "Source: " + fact.source, W / 2, H - 12 * s - ss * 0.3, ss, "rgba(222,234,242,0.85)", { align: "center", italic: true, weight: 400 });
+    // reading time: a bar that runs down, and how to skip it
+    if (g.readT && t < g.readT) {
+      const left = 1 - t / g.readT, bw = W * 0.5;
+      ctx.fillStyle = "rgba(236,196,68,0.25)"; ctx.fillRect(W / 2 - bw / 2, H - bh - 10 * s, bw, 4 * s); ctx.fillStyle = GOLD; ctx.fillRect(W / 2 - bw / 2, H - bh - 10 * s, bw * left, 4 * s);
+      if (t > 1.0 && Math.floor(t * 2) % 2 === 0) pixelText(ctx, INPUT.pad.connected ? "READY? PRESS A" : g.mobile ? "READY? TAP" : "READY? PRESS ENTER", W / 2, H - bh - 34 * s, Math.max(1, Math.round(2 * s)), NEON, { align: "center", shadow: "rgba(0,0,0,0.6)" });
+    }
   }
 }

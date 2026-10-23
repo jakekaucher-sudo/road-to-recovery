@@ -303,7 +303,7 @@ function roundedMask() {
 
 // One draw per material: every mesh under `group` that does not move on its own is baked into a
 // merged mesh (multi-material skins are split by side first). Keeps the escort cheap on phones.
-function mergeStatic(group, skip = () => false) {
+export function mergeStatic(group, skip = () => false) {
   group.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), buckets = new Map(), done = [];
   group.traverse(o => {

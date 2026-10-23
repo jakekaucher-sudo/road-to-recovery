@@ -37,8 +37,9 @@ export const CONFIG = {
     coast: 1700,              // natural slowdown
     offRoadDecel: 7000,
     offRoadLimit: 3200,
-    centrifugal: 0.26,        // how hard curves push you outward
-    steer: 2.1,               // lateral road-widths per second at full speed
+    centrifugal: 0.19,        // how hard curves push you outward
+    steer: 2.2,               // lateral road-widths per second at full speed
+    roadKeep: 0.35,           // gentle pull back onto the road near its edges when you are not steering
     boostSpeed: 15600,        // top speed while boosting
     boostTime: 2.6,           // seconds per boost
     boostsPerStage: 3,
@@ -92,6 +93,20 @@ export const CONFIG = {
     { text: "Economic Injury Disaster Loans provide working capital to small businesses after a disaster.", source: "SBA.gov, EIDL" },
     { text: "First payments on SBA disaster loans are deferred 12 months, with no interest accruing during the deferment.", source: "SBA.gov, disaster assistance" },
     { text: "SBA's Mobile Recovery Vehicles bring SBA customer service representatives to hard-to-reach areas.", source: "SBA release, April 2026" },
+    // more facts: retries, pause, results and time-up screens, and the talk radio (all confirmed on SBA pages; see research/)
+    { text: "Homeowners can borrow up to $500,000 to repair or replace a damaged primary residence.", source: "SBA.gov, physical damage loans" },
+    { text: "Homeowners and renters can borrow up to $100,000 to replace personal property like furniture, clothing and cars.", source: "SBA.gov, physical damage loans" },
+    { text: "SBA disaster loans can have terms of up to 30 years, with no prepayment penalty.", source: "SBA.gov, disaster assistance" },
+    { text: "Borrowers may add up to 20% of their verified loss to rebuild stronger against the next disaster.", source: "SBA.gov, mitigation assistance" },
+    { text: "Don't wait for an insurance settlement to apply. SBA loans cover losses insurance doesn't.", source: "SBA disaster releases" },
+    { text: "SBA won't decline a disaster loan just because of a lack of collateral.", source: "SBA.gov, disaster loans" },
+    { text: "Apply online at lending.sba.gov, by phone, or in person at a disaster recovery center.", source: "SBA.gov, disaster assistance" },
+    { text: "Find a recovery center and book a visit at appointment.sba.gov.", source: "SBA.gov, recovery center locator" },
+    { text: "SBA field teams deploy within 72 hours of a disaster.", source: "SBA Office of Disaster Recovery" },
+    { text: "Questions? SBA disaster customer service: 800-659-2955 or disastercustomerservice@sba.gov.", source: "SBA.gov, contact" },
+    { text: "Economic Injury Disaster Loans are available even if a business had no physical damage.", source: "SBA.gov, EIDL" },
+    { text: "Interest rates are capped at 4% for applicants who can't get credit elsewhere.", source: "SBA.gov, disaster assistance" },
+    { text: "In fiscal year 2025, SBA approved more than 51,000 disaster loans.", source: "SBA release, Nov 2025" },
   ],
 
   labels: {
@@ -107,6 +122,23 @@ export const CONFIG = {
     menu: "audio/music/stage5-french-touch.mp4",
     stages: ["audio/music/stage1-the-bounce.mp4", "audio/music/stage2-1993.mp4", "audio/music/stage3-what-you-know-about.mp4", "audio/music/stage4-old-school.mp4", "audio/music/stage5-shake-it.mp4"],
     volume: 0.55,
+  },
+
+  // ---- Desktop radio (src/radio.js): D-pad left / right or keys 4 / 5 while driving. Phones keep the
+  // stage songs. Songs are instrumental Artlist tracks, voices are Artlist text-to-speech, and each
+  // station is built by tools/make_radio_audio.py (see audio/README.md). url null = the stage's own song.
+  radio: {
+    stations: [
+      { id: "pulse", name: "PULSE", freq: "101.5 FM", genre: "ELECTRONIC", color: "#5CC8FF", url: null },
+      { id: "bigsky", name: "BIG SKY", freq: "98.7 FM", genre: "COUNTRY", color: "#ECC444", url: "audio/radio/country.mp4" },
+      { id: "storm", name: "THE STORM", freq: "104.1 FM", genre: "ROCK", color: "#FF5A5F", url: "audio/radio/rock.mp4" },
+      { id: "heat", name: "HEAT", freq: "95.3 FM", genre: "HIP HOP", color: "#FF8A3D", url: "audio/radio/hiphop.mp4" },
+      { id: "isla", name: "LA ISLA", freq: "92.9 FM", genre: "LATIN", color: "#3DDCB4", url: "audio/radio/latin.mp4", note: "Hosted by GC." },
+      { id: "sunny", name: "SUNNY", freq: "99.9 FM", genre: "POP", color: "#FF6FB0", url: "audio/radio/pop.mp4" },
+      { id: "talk", name: "RECOVERY TALK", freq: "1590 AM", genre: "TALK", color: "#ECC444", url: "audio/radio/talk.mp4",
+        note: "With Charlotte. Dramatized calls, facts from SBA.gov." },
+      { id: "off", name: "RADIO OFF", freq: "", genre: "", color: "#C9D2E0", url: "" },
+    ],
   },
 
   // ---- Cutscene slots ------------------------------------------------------

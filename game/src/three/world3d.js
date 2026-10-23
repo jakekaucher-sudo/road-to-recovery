@@ -10,6 +10,7 @@ import { buildRoad } from "./road3d.js";
 import { PROPS, carGeometry, CAR_COLORS, CAR_DIM, stopBuildingGeo, setPropDetail } from "./props3d.js";
 import { buildVan } from "./van3d.js";
 import { buildHeli } from "./heli3d.js";
+import { buildJumps } from "./jumps3d.js";
 import { kindSpec } from "../buildings.js";
 import { makeRain, makeParticles, makeFlyingDebris, makeLightning, makeTornado, makeWater } from "./fx3d.js";
 import { textTexture, glowTexture, blobTexture } from "./textures.js";
@@ -43,7 +44,7 @@ export class World3D {
     s.fog = new THREE.Fog(0xcccccc, 60, 600);
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1); s.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffffff, 2); s.add(this.sun); s.add(this.sun.target);
-    if (quality.shadows) { this.sun.castShadow = true; const sc = this.sun.shadow; sc.mapSize.set(1024, 1024); sc.camera.left = -14; sc.camera.right = 14; sc.camera.top = 14; sc.camera.bottom = -14; sc.camera.near = 1; sc.camera.far = 80; sc.bias = -0.0008; sc.normalBias = 0.03; }
+    if (quality.shadows) { this.sun.castShadow = true; const sc = this.sun.shadow; sc.mapSize.set(quality.shadowMap || 1024, quality.shadowMap || 1024); sc.camera.left = -14; sc.camera.right = 14; sc.camera.top = 14; sc.camera.bottom = -14; sc.camera.near = 1; sc.camera.far = 80; sc.bias = -0.0008; sc.normalBias = 0.03; }
     this.uni = { uTime: { value: 0 }, uWind: { value: 0 } };
     this.sway = swayMaterial(this.uni); this.solid = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.van = buildVan(art, quality); s.add(this.van.root);
@@ -176,6 +177,8 @@ export class World3D {
       group.add(im, tl, blob); st.cars[type] = { list, im, tl, blob, dim: CAR_DIM[type] };
       if (type === "utility") { const bc = new THREE.InstancedMesh(new THREE.BoxGeometry(1.2, 0.16, 0.3), new THREE.MeshBasicMaterial({ color: 0xffa020 }), list.length); bc.instanceMatrix.setUsage(THREE.DynamicDrawUsage); bc.frustumCulled = false; group.add(bc); st.cars[type].beacon = bc; }
     }
+    // ---- jumps: the drawbridge (stage 1) and the car carrier (stage 2)
+    if (track.jumps && track.jumps.length) { st.jumps = buildJumps(track, cl, look, this.q); group.add(st.jumps.group); }
     // ---- the stop's building with a live restoring facade
     this.buildBusiness(game, st);
     // ---- look & environment
@@ -290,11 +293,15 @@ export class World3D {
     const latVel = jump ? 0 : (P.x - game.prevX) * 60 * HALFW;   // per physics step, not per screen frame
     const yawT = speedMs > 1 ? Math.atan2(latVel, speedMs) * 0.9 : 0;
     this.yawVis = lerp(this.yawVis, Math.max(-0.5, Math.min(0.5, yawT)), 1 - Math.exp(-dt * 9.75));
-    const V = this.van.root; V.position.set(pos.x, pos.y, pos.z); V.rotation.set(0, -pos.h - this.yawVis, 0, "YXZ");
+    const airI = jump ? (P.airY || 0) : (game.prevAirY ?? P.airY ?? 0) + ((P.airY || 0) - (game.prevAirY ?? P.airY ?? 0)) * ra;   // height above the road on a jump
+    this.airI = airI;
+    const V = this.van.root; V.position.set(pos.x, pos.y + airI, pos.z); V.rotation.set(0, -pos.h - this.yawVis, 0, "YXZ");
     const night = Math.max(0, Math.min(1, 1.25 - L.sunIntensity * 0.45 - L.hemiIntensity * 0.25 + L.rain * 0.3));
-    this.van.update({ speed: speedMs, dt, steer: INPUT.steer * (game.state === "drive" ? 1 : 0), brake: (INPUT.brake && game.state === "drive") || game.autoStop ? 1 : 0, night,
+    const nos = game.boostT > 0 ? Math.min(1, game.boostT / 0.25, (this.cfg.physics.boostTime - game.boostT) / 0.12 + 0.3) : 0;
+    this.nos = nos;
+    this.van.update({ speed: speedMs, dt, steer: INPUT.steer * (game.state === "drive" ? 1 : 0), brake: (INPUT.brake && game.state === "drive") || game.autoStop ? 1 : 0, night, air: airI, boost: nos, boostPop: Math.max(0, 1 - (this.cfg.physics.boostTime - game.boostT) / 0.3),
       roll: -this.yawVis * 0.12 + game.roll * 0.5, pitch: -pitchAt(cl, vz) * 0.0 + (game.hitFx * 0.03), bounce: Math.sin((t - (1 - ra) / 60) * 19) * 0.012 * Math.min(1, speedMs / 20) + (Math.abs(P.x) > 1.05 ? Math.sin(t * 31) * 0.03 : 0) });
-    V.rotation.x = pitchAt(cl, vz);
+    V.rotation.x = pitchAt(cl, vz) + (P.pitch || 0);
     if (this.headSpot) this.headSpot.intensity = night * 40;
     // ---- shadows follow the van
     if (this.q.shadows) { const sd = this.sky.uniforms.sunDir.value; this.sun.position.set(pos.x + sd.x * 40, pos.y + Math.max(0.3, sd.y) * 40, pos.z + sd.z * 40); this.sun.target.position.set(pos.x, pos.y, pos.z); }
@@ -336,6 +343,7 @@ export class World3D {
     // ---- lamps at dusk/storms
     if (st.glowMat) st.glowMat.opacity = 0.15 + 0.7 * night;
     // ---- business facade (redraw while restoring)
+    if (st.jumps) st.jumps.update(t);
     if (st.biz) {
       const p = game.restoreP[st.biz.idx] || 0;
       if (Math.abs(p - st.biz.lastP) > 0.004 || (game.state === "restoring" && (this.q.high || Math.floor(t * 30) % 2 === 0))) this.drawFacade(p, t);
@@ -364,7 +372,7 @@ export class World3D {
     if (this.ocean.mesh.visible) this.ocean.update(t, cam, st.road.seaY);
     if (this.flood.mesh.visible) this.flood.update(t, cam, pos.y - 0.32);
     // particles: wheel spray, dust, sparks from game events
-    const pr = this.parts;
+    const pr = this.parts, airI0 = this.airI || 0;
     if (speedMs > 6 && (wet || Math.abs(P.x) > 1.05)) {
       const n = game.inWater ? 5 : 1;
       for (let i = 0; i < n; i++) {
@@ -373,8 +381,12 @@ export class World3D {
         pr.emit(bx, pos.y + 0.3, bz, right.x * side * (1 + Math.random() * 2) - fwd.x * 3, 1.5 + Math.random() * (game.inWater ? 4 : 2), right.z * side * (1 + Math.random() * 2) - fwd.z * 3, 0.5 + Math.random() * 0.4, col.map(c => c * 0.45), game.inWater ? 0.4 : 0.18, 9.8, 1.5);
       }
     }
+    // nitrous sparks streaming out of the exhausts
+    if (this.nos > 0.05) for (let i = 0; i < (this.q.high ? 3 : 1); i++) { const sx = Math.random() < 0.5 ? -1 : 1, bx = pos.x - fwd.x * 3.1 + right.x * sx * 0.55, bz = pos.z - fwd.z * 3.1 + right.z * sx * 0.55;
+      pr.emit(bx, pos.y + airI0 + 0.45, bz, -fwd.x * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, Math.random() * 0.8, -fwd.z * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, 0.22 + Math.random() * 0.2, [0.35, 0.6, 1.0], 0.35, 0, 0.5); }
     for (const ev of game.events) {
       if (ev.type === "sparks" || ev.type === "pickup") { const col = ev.type === "pickup" ? [0.95, 0.8, 0.3] : [1, 0.85, 0.5]; for (let i = 0; i < 28; i++) pr.emit(pos.x + fwd.x * 3, pos.y + 1, pos.z + fwd.z * 3, (Math.random() - 0.5) * 12, Math.random() * 7, (Math.random() - 0.5) * 12, 0.6 + Math.random() * 0.4, col, 0.35); }
+      if (ev.type === "land") { const k = Math.min(40, 10 + (ev.impact || 0) * 2.5); for (let i = 0; i < k; i++) { const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 6; pr.emit(pos.x + Math.cos(a) * 1.4, pos.y + 0.2, pos.z + Math.sin(a) * 2.4, Math.cos(a) * v, 0.6 + Math.random() * 2, Math.sin(a) * v, 0.5 + Math.random() * 0.4, wet ? [0.3, 0.33, 0.37] : [0.34, 0.3, 0.25], 0.8, 6, 1.5); } }
       if (ev.type === "splash") for (let i = 0; i < 40; i++) { const side = Math.random() < 0.5 ? -1 : 1; pr.emit(pos.x + right.x * side * 1.2, pos.y + 0.2, pos.z + right.z * side * 1.2, right.x * side * (2 + Math.random() * 5), 3 + Math.random() * 5, right.z * side * (2 + Math.random() * 5), 0.8, [0.8, 0.88, 0.95], 1.0); }
       if (ev.type === "restore" && st.biz) { const b = st.biz.g.position; for (let i = 0; i < 6; i++) pr.emit(b.x + (Math.random() - 0.5) * 14, b.y + Math.random() * st.biz.height, b.z + (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 2, 1 + Math.random() * 2, (Math.random() - 0.5) * 2, 1.2, [1, 0.85, 0.35], 0.6, -0.5); }
     }
@@ -426,14 +438,17 @@ export class World3D {
     const P = game.player, speedK = P.speed / this.cfg.physics.maxSpeed;
     const dh = ((pos.h + this.yawVis * 0.45 - C.heading + Math.PI) % (2 * Math.PI)) - Math.PI;
     C.heading = C.init ? C.heading + dh * Math.min(1, dt * 5) : pos.h;
-    const back = 8.2 + speedK * 0.9 + (game.boostT > 0 ? 0.8 : 0), up = 5.1 - speedK * 0.2;
+    // On a jump the camera rises with the van (so a long nitrous jump never leaves it a speck at the top
+    // of the screen) and pulls back a little, so the drop below shows how high it is.
+    const air = this.airI || 0;
+    const back = 8.2 + speedK * 0.9 + (game.boostT > 0 ? 0.8 : 0) + Math.min(3, air * 0.35), up = 5.1 - speedK * 0.2;
     const fx = Math.sin(C.heading), fz = -Math.cos(C.heading);
-    const ty = pos.y + up;
+    const ty = pos.y + up + air * 0.92;
     if (!C.init) { C.pos.y = ty; C.init = true; }
     C.pos.x = pos.x - fx * back; C.pos.z = pos.z - fz * back; C.pos.y += (ty - C.pos.y) * Math.min(1, dt * 6);
     const sh = game.shake * 0.25 + (Math.abs(P.x) > 1.05 ? 0.06 : 0) * speedK + game.flash * 0.05;
     cam.position.set(C.pos.x + (Math.random() - 0.5) * sh, C.pos.y + (Math.random() - 0.5) * sh, C.pos.z + (Math.random() - 0.5) * sh);
-    cam.lookAt(pos.x + fx * 24, pos.y + 0.7, pos.z + fz * 24);
+    cam.lookAt(pos.x + fx * 24, pos.y + 0.7 + air * 0.85, pos.z + fz * 24);
     cam.rotateZ(-this.yawVis * 0.08);
     const fov = 60 + speedK * 6 + (game.boostT > 0 ? 8 : 0); cam.fov = lerp(cam.fov, fov, 0.08); cam.updateProjectionMatrix();
   }

@@ -54,8 +54,9 @@ function render(dtMs = 16) {
   else if (s === "stageIntro" || s === "drive" || s === "gameover") {
     if (s !== "gameover") drawHUD(ctx, g, W, H, CONFIG);
     if (s === "stageIntro") {
-      if (T < 3.6) drawStageIntro(ctx, g, W, H, CONFIG, T);
-      if (T > 1.5 && T < 4.4) { const n = T > 4.0 ? "GO!" : String(Math.max(1, 3 - Math.floor(T - 1.5))); neonText(ctx, n, W / 2, H * 0.36, Math.round(16 * Math.min(W / 1280, H / 720)), n === "GO!" ? "#ECC444" : "#FEFEFE", { align: "center", glow: "#CD2127" }); }
+      const T2 = T - (g.readT || 0);                                     // time since the reading pause ended
+      if (T2 < 3.6) drawStageIntro(ctx, g, W, H, CONFIG, T);
+      if (T2 > 1.5 && T2 < 4.4) { const n = T2 > 4.0 ? "GO!" : String(Math.max(1, 3 - Math.floor(T2 - 1.5))); neonText(ctx, n, W / 2, H * 0.36, Math.round(16 * Math.min(W / 1280, H / 720)), n === "GO!" ? "#ECC444" : "#FEFEFE", { align: "center", glow: "#CD2127" }); }
     }
     if (s === "gameover") drawGameOver(ctx, g, W, H, T);
     if (g.paused) drawPause(ctx, g, W, H);
@@ -75,16 +76,23 @@ function render(dtMs = 16) {
   document.body.classList.toggle("show3d", s === "title" || WORLD_STATES.has(s));
 }
 
-let last = 0, acc = 0;
+// Screens faster than 60 Hz draw on every other refresh (or so): physics runs at 60 Hz anyway, a steady
+// 60 fps looks smoother than a wobbly 120, and the GPU gets twice the time for each frame.
+let last = 0, acc = 0, lastDraw = 0, vsync = 1000 / 60, rafN = 0;
+const rafDts = [];
 function frame(now) {
-  const dtMs = Math.min(100, now - (last || now)); last = now; acc += dtMs / 1000;
+  requestAnimationFrame(frame);
+  const raw = now - (last || now); last = now;
+  if (raw > 0 && raw < 60) { rafDts.push(raw); if (rafDts.length > 31) rafDts.shift(); }
+  if (++rafN % 30 === 0 && rafDts.length > 20) vsync = [...rafDts].sort((a, b) => a - b)[rafDts.length >> 1];   // the refresh interval
+  if (lastDraw && now - lastDraw < 1000 / 60 - vsync * 0.6) return;
+  const dtMs = Math.min(100, now - (lastDraw || now)); lastDraw = now; acc += dtMs / 1000;
   let steps = 0;
   while (acc >= 1 / 60 && steps < 6) { pollInput(); game.update(); clearEdges(); acc -= 1 / 60; steps++; }
   if (steps === 6) acc = 0;
   game.audio.update();
   game.renderAlpha = Math.min(1, acc * 60);              // how far we are between two physics steps
   render(dtMs);
-  requestAnimationFrame(frame);
 }
 
 async function boot() {
@@ -100,7 +108,7 @@ async function boot() {
     const audio = new Audio();
     if (params.get("mute") === "1") audio.setMuted(true);
     game = new Game(CONFIG, ART, new WorldRenderer(W, H, CONFIG), audio, mobile);
-    game.onStageLoad = (g) => { world.loadStage(g); world.heliWarm(true); engine.warm(world.scene, world.cam); world.heliWarm(false); };
+    game.onStageLoad = (g) => { world.loadStage(g); world.heliWarm(true); engine.warm(world.scene, world.cam); world.heliWarm(false); engine.settle(); };
     world.loadStage(game); engine.warm(world.scene, world.cam); engine.warm(title.scene, title.cam);
     game.autopilot = params.get("autopilot") === "1";
     if (params.has("stage")) { game.loadStage(clamp(+params.get("stage") - 1, 0, 4)); game.beginStage(); }

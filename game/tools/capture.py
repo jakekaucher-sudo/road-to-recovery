@@ -106,12 +106,7 @@ class WS:
                 return m.get("result", {})
 
 
-class Quiet(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *a):
-        pass
-    def end_headers(self):
-        self.send_header("Cache-Control", "no-store")
-        super().end_headers()
+from rangehttp import RangeHandler as Quiet       # answers byte ranges, so audio can start part-way through
 
 
 def start_server():

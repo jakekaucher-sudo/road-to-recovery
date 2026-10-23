@@ -32,21 +32,26 @@ export function buildRoad(track, cl, look, quality) {
   const seaY = minY - 1.6;
   track.seaY = seaY; track.floodY = null;
 
+  // the drawbridge's river: terrain drops to a riverbed across the bridge, and the road has a gap
+  const segs = track.segs, bridge = (track.jumps || []).find(j => j.kind === "drawbridge");
+  const riverK = (i) => !bridge ? 0 : Math.max(0, Math.min(1, Math.min(i - (bridge.span0 - 8), (bridge.span1 + 8) - i) / 8));
+  const bedY = (i) => bridge.deckY * 0.0037 - 7.2 - cl.py[i];      // relative to the road at row i
+  const inGap = (i) => segs[i] && segs[i].bridge && segs[i].bridge.part === "gap" && segs[i + 1] && segs[i + 1].bridge && segs[i + 1].bridge.part === "gap";
   for (let c0 = 0; c0 < N; c0 += CHUNK) {
     const c1 = Math.min(N, c0 + CHUNK), rows = c1 - c0 + 1;
     // ---- road + curbs + shoulders: columns at fixed offsets
     const lat = [-(HALFW + 3), -(HALFW + 0.9), -HALFW, HALFW, HALFW + 0.9, HALFW + 3];
     const rp = [], ru = [], rIdx = [], cp = [], cu = [], cIdx = [], gp = [], gc = [], gu = [], gIdx = [];
-    const pushStrip = (pos, uv, idx, cols, getP, getUV) => {
+    const pushStrip = (pos, uv, idx, cols, getP, getUV, skip) => {
       const base = pos.length / 3;
       for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) { const p = getP(c0 + r, k); pos.push(p[0], p[1], p[2]); const t = getUV(c0 + r, k); uv.push(t[0], t[1]); }
-      for (let r = 0; r < rows - 1; r++) for (let k = 0; k < cols - 1; k++) { const a = base + r * cols + k, b = a + 1, c = a + cols, d = c + 1; idx.push(a, c, b, b, c, d); }
+      for (let r = 0; r < rows - 1; r++) { if (skip && skip(c0 + r)) continue; for (let k = 0; k < cols - 1; k++) { const a = base + r * cols + k, b = a + 1, c = a + cols, d = c + 1; idx.push(a, c, b, b, c, d); } }
     };
     const P = (i, off, dy) => { const h = cl.hd[i], rx = Math.cos(h), rz = Math.sin(h); return [cl.px[i] + rx * off, cl.py[i] + dy, cl.pz[i] + rz * off]; };
     // asphalt
-    pushStrip(rp, ru, rIdx, 2, (i, k) => P(i, k ? HALFW : -HALFW, 0.0), (i, k) => [k, distAt[i] / 9]);
+    pushStrip(rp, ru, rIdx, 2, (i, k) => P(i, k ? HALFW : -HALFW, 0.0), (i, k) => [k, distAt[i] / 9], inGap);
     // curbs (left and right)
-    for (const side of [-1, 1]) pushStrip(cp, cu, cIdx, 2, (i, k) => P(i, side * (HALFW + k * 0.9), 0.05 - k * 0.03), (i, k) => [k, distAt[i] / 3.2]);
+    for (const side of [-1, 1]) pushStrip(cp, cu, cIdx, 2, (i, k) => P(i, side * (HALFW + k * 0.9), 0.05 - k * 0.03), (i, k) => [k, distAt[i] / 3.2], inGap);
     // shoulders + terrain (with vertex colours)
     for (const side of [-1, 1]) {
       const base = gp.length / 3, offs = [HALFW + 0.9, HALFW + 3, ...COLS], cols = offs.length;
@@ -58,6 +63,7 @@ export function buildRoad(track, cl, look, quality) {
           let col = k <= 1 ? sh.clone() : gA.clone().lerp(gB, vnoise(distAt[i] * 0.03 + side * 11, d * 0.05));
           if (coast && side > 0 && k >= 2) { const fall = (d - HALFW - 3) * 0.12; y = Math.max(seaY - cl.py[i] - 2.5, -0.3 - fall); col = sand.clone().lerp(gB, 0.1); }
           if (flood && k >= 3) { y = Math.min(y, -0.85 + vnoise(distAt[i] * 0.02, d * 0.03 + side) * 0.5); col = mud.clone().lerp(gA, 0.3); }
+          const rk = riverK(i); if (rk > 0) { y = y + (bedY(i) - y) * rk; col = col.lerp(mud, rk * 0.7); }   // river banks and bed
           const p = P(i, side * d, y); gp.push(p[0], p[1], p[2]); gc.push(col.r, col.g, col.b); gu.push(p[0] / 7, p[2] / 7);
         }
       }

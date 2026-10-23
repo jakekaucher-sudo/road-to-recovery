@@ -8,7 +8,8 @@ export const INPUT = {
   mobile: false, gyro: { invert: new URLSearchParams(location.search).get("invertTilt") === "1", available: false, active: false, angle: 0, neutral: 0, sensitivity: 24, deadzone: 2 },
   touchSteer: 0, lastGasTap: 0, keys: new Set(), any: false, calibrateRequest: false,
   steerMode: "tilt", notice: null,          // phones: "tilt" (motion sensor) or "drag" (slide a finger)
-  pad: { connected: false, name: "", steer: 0, gas: 0, brake: 0, prev: [] },   // game controller (Xbox layout)
+  pad: { connected: false, name: "", mapping: "", steer: 0, gas: 0, brake: 0, prev: [], axRest: {} },   // game controller (Xbox layout)
+  radioStep: 0,                             // -1 / +1 for one frame: change radio station (desktop)
 };
 // Remember the player's steering choice on this device.
 try { const m = localStorage.getItem("rtr-steer"); if (m === "tilt" || m === "drag") INPUT.steerMode = m; } catch (e) {}
@@ -37,6 +38,8 @@ export function initInput(canvas, ui) {
     if (e.code === "Enter" || e.code === "Space" || GAS.includes(e.code)) INPUT.confirmPressed = true;
     if (e.code === "KeyM") INPUT.mutePressed = true;
     if (e.code === "Digit1" || e.code === "Numpad1") INPUT.escortPressed = true;   // helicopter escort (when earned)
+    if (e.code === "Digit4" || e.code === "Numpad4") INPUT.radioStep = -1;           // radio: previous / next station (desktop)
+    if (e.code === "Digit5" || e.code === "Numpad5") INPUT.radioStep = 1;
   });
   window.addEventListener("keyup", (e) => INPUT.keys.delete(e.code));
   window.addEventListener("blur", () => INPUT.keys.clear());
@@ -157,14 +160,20 @@ export function pollInput() {
   }
   pollPad();
   if (INPUT.pad.steer) steer = INPUT.pad.steer;                // a controller stick overrides when moved
-  INPUT.steer = steer;
+  // Smooth the steering a little: a quick key tap gives a small correction instead of a full swerve,
+  // and tilt / stick jitter is filtered out. Letting go returns to straight faster than turning in.
+  const back = Math.abs(steer) < Math.abs(INPUT.steer) || Math.sign(steer) !== Math.sign(INPUT.steer);
+  INPUT.steer += (steer - INPUT.steer) * (back ? 0.32 : 0.2);
+  if (Math.abs(INPUT.steer) < 0.002) INPUT.steer = 0;
   INPUT.gas = Math.max(has(GAS) ? 1 : 0, INPUT.touchGas || 0, INPUT.pad.gas);
   INPUT.brake = Math.max(has(BRAKE) ? 1 : 0, INPUT.touchBrake || 0, INPUT.pad.brake);
   if (INPUT.calibrateRequest) { calibrateGyro(); INPUT.calibrateRequest = false; }
 }
 // ---- game controller (Xbox, or any controller the browser maps to the standard layout) ----
-// Left stick (or D-pad): steer.  RT (or D-pad up): gas.  LT (or D-pad down): brake.  X (or RB): boost.  A: start / confirm.
-// B: helicopter escort (only after a time-up).
+// Left stick: steer.  RT (or D-pad up): gas.  LT (or D-pad down): brake.  X (or RB): boost.  A: start / confirm.
+// B: helicopter escort (only after a time-up).  D-pad left / right: radio station (desktop).
+// Browsers that do not give the controller the standard layout (e.g. Firefox on a Mac, some third-party
+// pads) report the triggers as axes resting at -1 instead of buttons 6 and 7; both are read.
 // Menu (Start): pause.  View (Back): music on/off.
 const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 window.addEventListener("gamepadconnected", (e) => { INPUT.pad.connected = true; INPUT.pad.name = e.gamepad.id; INPUT.notice = "CONTROLLER CONNECTED"; });
@@ -179,8 +188,17 @@ function pollPad() {
   // stick with a dead zone and a gentle curve for fine steering
   let sx = gp.axes[0] || 0; const dz = 0.15;
   sx = Math.abs(sx) < dz ? 0 : Math.sign(sx) * Math.pow((Math.abs(sx) - dz) / (1 - dz), 1.4);
-  P.steer = Math.max(-1, Math.min(1, sx + (pressed(PAD.RIGHT) ? 1 : 0) - (pressed(PAD.LEFT) ? 1 : 0)));
-  P.gas = Math.max(btn(PAD.RT), pressed(PAD.UP) ? 1 : 0); P.brake = Math.max(btn(PAD.LT), pressed(PAD.DOWN) ? 1 : 0);
+  P.steer = Math.max(-1, Math.min(1, sx));
+  P.mapping = gp.mapping || "non-standard";
+  let rt = btn(PAD.RT), lt = btn(PAD.LT);
+  if (gp.mapping !== "standard") {
+    // trigger axes rest at -1; only trust an axis once it has been seen resting there
+    const trig = (i) => { const v = gp.axes[i]; if (v === undefined) return 0; if (v < -0.9) P.axRest[i] = true; return P.axRest[i] ? Math.max(0, (v + 1) / 2) : 0; };
+    lt = Math.max(lt, trig(2), trig(4)); rt = Math.max(rt, trig(5), trig(3));
+  }
+  P.rt = rt; P.lt = lt;
+  P.gas = Math.max(rt, pressed(PAD.UP) ? 1 : 0); P.brake = Math.max(lt, pressed(PAD.DOWN) ? 1 : 0);
+  if (edge(PAD.LEFT)) INPUT.radioStep = -1; if (edge(PAD.RIGHT)) INPUT.radioStep = 1;
   if (edge(PAD.A)) INPUT.confirmPressed = true;
   if (edge(PAD.X) || edge(PAD.RB)) INPUT.boostPressed = true;
   if (edge(PAD.MENU)) INPUT.pausePressed = true;
@@ -195,4 +213,4 @@ export function rumble(strength = 0.6, ms = 180) {
   for (const gp of pads) { const a = gp && gp.vibrationActuator; if (a && a.playEffect) a.playEffect("dual-rumble", { duration: ms, strongMagnitude: strength, weakMagnitude: strength * 0.6 }).catch(() => {}); }
 }
 
-export function clearEdges() { INPUT.boostPressed = INPUT.pausePressed = INPUT.confirmPressed = INPUT.mutePressed = INPUT.escortPressed = false; }
+export function clearEdges() { INPUT.boostPressed = INPUT.pausePressed = INPUT.confirmPressed = INPUT.mutePressed = INPUT.escortPressed = false; INPUT.radioStep = 0; }

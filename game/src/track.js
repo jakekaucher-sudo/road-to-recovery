@@ -5,6 +5,7 @@
 import { lerp, clamp } from "./util.js";
 
 export const SEG = 200, ROAD_W = 2000, LANES = 3;
+const M = 1 / 0.0037;                 // track units per metre (see three/space.js U2M)
 
 export function rng(seed) {
   let a = seed >>> 0;
@@ -38,8 +39,33 @@ export function buildTrack(stage, index, cfg) {
   };
   const L = stage.length;
   const approach = 260;                       // straight run-in to the business
+  // ---- jumps: a drawbridge across a river (stage 1) and a parked car carrier with its ramp down (stage 2)
+  const jumps = [], jumpAt = { 0: "drawbridge", 1: "carrier" }[index];
+  const insertJump = (kind) => {
+    const y0 = lastY();
+    if (kind === "drawbridge") {
+      // both bascule leaves are raised: up the near leaf, over the gap, down the far leaf
+      const run = 80, leaf = 26, gap = 18, H = 4.2 * M, j = { kind, deckY: y0, H, leaf, gap };
+      for (let k = 0; k < run; k++) add(0, y0);
+      j.up0 = segs.length; for (let k = 1; k <= leaf; k++) { add(0, y0 + H * k / leaf); segs[segs.length - 1].bridge = { part: "up", k }; }
+      j.gap0 = segs.length; for (let k = 0; k < gap; k++) { add(0, y0); segs[segs.length - 1].bridge = { part: "gap", k }; }
+      j.gap1 = segs.length; for (let k = 0; k < leaf; k++) { add(0, y0 + H * (1 - k / leaf)); segs[segs.length - 1].bridge = { part: "down", k }; }
+      j.down1 = segs.length; for (let k = 0; k < 70; k++) add(0, y0);
+      j.span0 = j.up0 - 6; j.span1 = j.down1 + 6; j.angle = Math.atan2(4.2, leaf * SEG / M);
+      jumps.push(j);
+    } else {
+      // car carrier parked in the right lane: rear ramp, empty upper deck, a kick at the front over the cab
+      const run = 60, j = { kind, lane: 0.62, H: 3.4, kick: 0.45, ramp: 9, deck: 20, cab: 9 };
+      for (let k = 0; k < run; k++) add(0, y0);
+      j.i0 = segs.length; j.lip = j.i0 + j.ramp + j.deck; j.end = j.lip + j.cab;
+      for (let k = 0; k < j.ramp + j.deck + j.cab + 90; k++) add(0, y0);
+      j.span0 = j.i0 - 40; j.span1 = j.end + 30;
+      jumps.push(j);
+    }
+  };
   addRoad(10, 40, 10, 0, 0);                 // start straight
   while (segs.length < L - approach - 60) {
+    if (jumpAt && !jumps.length && segs.length > L * 0.42) { insertJump(jumpAt); continue; }
     const r = R();
     const len = 25 + Math.floor(R() * 45);
     const dir = R() < 0.5 ? -1 : 1;
@@ -61,12 +87,14 @@ export function buildTrack(stage, index, cfg) {
   segs[zoneStart - 1].sprites.push({ kind: "gate", offset: 0 });
   [1500, 1000, 500].forEach((ft, k) => { const i = zoneStart - 30 - k * 28; segs[i].sprites.push({ kind: "stopSign", offset: 1.45, label: ft + " FT" }); });
   const finish = { zoneStart, zoneEnd, bizSeg, N };
+  const nearJump = (i, pad = 0) => jumps.some(j => i >= j.span0 - pad && i <= j.span1 + pad);
 
   // ---- roadside scenery -----------------------------------------------------
   const theme = THEME[stage.weather] || THEME.dusk;
   for (let i = 8; i < N - 2; i++) {
     const s = segs[i];
     const clear = i > zoneStart - 40 && i < zoneEnd + 20;    // keep the stop (and its restore shot) clear
+    if (jumps.some(j => j.kind === "drawbridge" && i >= j.span0 - 8 && i <= j.span1 + 8)) continue;   // the river: no lamps or trees in the water
     if (i % 22 === 0) { s.sprites.push({ kind: "lamp", offset: -1.3 }); if (!clear) s.sprites.push({ kind: "lamp", offset: 1.3 }); }
     if (clear) continue;
     for (const side of [-1, 1]) {
@@ -86,7 +114,8 @@ export function buildTrack(stage, index, cfg) {
   // ---- hazards on the road ---------------------------------------------------
   const nHaz = stage.hazards;
   for (let h = 0; h < nHaz; h++) {
-    const i = 90 + Math.floor(R() * (zoneStart - 160));
+    let i = 90 + Math.floor(R() * (zoneStart - 160));
+    while (nearJump(i, 30)) i = 90 + Math.floor(R() * (zoneStart - 160));    // keep the jumps clear
     const kind = theme.hazards[Math.floor(R() * theme.hazards.length)];
     const lane = [-0.6, 0, 0.6][Math.floor(R() * 3)];
     const hz = { kind, offset: lane, seed: (R() * 1e6) | 0, hit: false, vx: 0 };
@@ -103,18 +132,20 @@ export function buildTrack(stage, index, cfg) {
   }
   // ---- time pickups ---------------------------------------------------------
   for (let k = 0; k < 6; k++) {
-    const i = 150 + Math.floor((k + 0.5) / 6 * (zoneStart - 300));
+    let i = 150 + Math.floor((k + 0.5) / 6 * (zoneStart - 300));
+    while (nearJump(i, 20)) i += 10;
     segs[i].pickups.push({ kind: "time", offset: [-0.6, 0, 0.6][Math.floor(R() * 3)], got: false, bonus: 3 });
   }
   // ---- traffic ----------------------------------------------------------------
   const cars = [];
   const types = ["sedan", "pickup", "utility", "boxtruck", "sedan", "hatch"];
   for (let c = 0; c < stage.traffic; c++) {
-    const z = (70 + R() * (zoneStart - 200)) * SEG;
+    let z = (70 + R() * (zoneStart - 200)) * SEG;
+    while (nearJump(Math.floor(z / SEG), 20)) z += 40 * SEG;
     cars.push({ z, offset: [-0.62, 0, 0.62][Math.floor(R() * 3)], lane0: 0, speed: 3200 + R() * 4200, type: types[Math.floor(R() * types.length)], color: Math.floor(R() * 6), seed: (R() * 1e6) | 0, swerve: R() < 0.3 ? 0.4 + R() * 0.5 : 0, hit: 0 });
     cars[cars.length - 1].lane0 = cars[cars.length - 1].offset;
   }
-  return { segs, N, cars, finish, length: N * SEG, theme, stage, index };
+  return { segs, N, cars, finish, length: N * SEG, theme, stage, index, jumps };
 }
 
 export function findSeg(track, z) { return track.segs[clamp(Math.floor(z / SEG), 0, track.N - 1)]; }

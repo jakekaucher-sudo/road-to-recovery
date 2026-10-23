@@ -33,10 +33,10 @@ export function drawTitle(ctx, game, W, H, t) {
   if (Math.floor(t * 2) % 2 === 0) neonText(ctx, INPUT.pad.connected ? "PRESS A TO START" : game.mobile ? "TAP TO START" : "PRESS ENTER TO START", W / 2, H * 0.88, Math.round(4 * s), WHITE, { align: "center", glow: NEON });
   // controls card
   const lines = (INPUT.pad.connected
-    ? ["LEFT STICK / D-PAD  STEER", "RT  GAS", "LT  BRAKE", "X OR RB  BOOST", "MENU  PAUSE"]
+    ? ["LEFT STICK  STEER", "RT  GAS", "LT  BRAKE", "X OR RB  BOOST", ...(game.mobile ? [] : ["D-PAD < >  RADIO"]), "MENU  PAUSE"]
     : game.mobile
     ? [INPUT.steerMode === "tilt" ? "TILT PHONE  STEER" : "DRAG SCREEN  STEER", "HOLD GAS  RIGHT PEDAL", "HOLD BRAKE  LEFT PEDAL", "TAP GAS TWICE  BOOST"]
-    : ["← →  STEER", "↑  GAS", "↓ SPACE C  BRAKE", "X SHIFT  BOOST", "P  PAUSE   M  MUSIC"]).map(l => l.replace("←", "<").replace("→", ">").replace("↑", "^").replace("↓", "V"));
+    : ["← →  STEER", "↑  GAS", "↓ SPACE C  BRAKE", "X SHIFT  BOOST", "4 5  RADIO", "P  PAUSE   M  MUSIC"]).map(l => l.replace("←", "<").replace("→", ">").replace("↑", "^").replace("↓", "V"));
   // the card is sized from its text, so the words always sit inside it
   const px = Math.max(1, Math.round(2 * s)), lh = Math.max(22 * s, 10 * px), pad = 16 * s;
   const cw = Math.max(...lines.map(l => pixelWidth(l, px))) + pad * 2, ch = (lines.length - 1) * lh + 7 * px + pad * 2, cx = 24 * s, cy = H - ch - 24 * s;
@@ -133,6 +133,17 @@ export function drawResults(ctx, game, W, H, t) {
   text(ctx, "* " + game.cfg.labels.hypothetical, W / 2, cy + ch - 18 * s, Math.round(13 * s), "rgba(222,234,242,0.7)", { align: "center", italic: true, weight: 400 });
   ctx.restore();
   if (t > 1 && Math.floor(t * 2) % 2 === 0) neonText(ctx, game.stageIndex < 4 ? (game.mobile ? "TAP FOR NEXT STAGE" : "ENTER FOR NEXT STAGE") : (game.mobile ? "TAP TO FINISH" : "ENTER TO FINISH"), W / 2, cy + ch + 30 * s, Math.round(3 * s), NEON, { align: "center" });
+  drawFact(ctx, game.resultFact, W, 24 * s, s, Math.min(W * 0.8, 900 * s), clamp((t - 0.6) / 0.4, 0, 1));
+}
+// "DID YOU KNOW?" with an SBA fact, wrapped to two lines, centred at y.
+export function drawFact(ctx, fact, W, y, s, maxW = W * 0.8, alpha = 1) {
+  if (!fact) return;
+  const fs = Math.round(19 * s), ls = wrapLines(ctx, fact.text, fs, maxW, { weight: 600 }).slice(0, 2);
+  ctx.save(); ctx.globalAlpha = alpha;
+  pixelText(ctx, "DID YOU KNOW?", W / 2, y, Math.max(1, Math.round(2 * s)), "#ECC444", { align: "center", shadow: "rgba(0,0,0,0.6)" });
+  ls.forEach((l, i) => text(ctx, l, W / 2, y + 36 * s + i * fs * 1.25, fs, "#FEFEFE", { align: "center", weight: 600, shadow: "rgba(0,0,0,0.6)" }));
+  text(ctx, "Source: " + fact.source, W / 2, y + 36 * s + ls.length * fs * 1.25 + 2 * s, Math.round(13 * s), "rgba(222,234,242,0.75)", { align: "center", italic: true, weight: 400 });
+  ctx.restore();
 }
 // Largest whole pixel size <= px at which pixel text fits in maxW.
 function fitPx(str, px, maxW) { while (px > 1 && pixelWidth(str, px) > maxW) px--; return px; }
@@ -144,19 +155,26 @@ export function drawGameOver(ctx, game, W, H, t) {
   const left = Math.max(0, Math.ceil(9 - t));
   neonText(ctx, "CONTINUE?  " + left, W / 2, H * 0.5, Math.round(6 * s), GOLD, { align: "center" });
   pixelText(ctx, game.mobile ? "TAP TO RETRY THIS STAGE" : "PRESS ENTER TO RETRY THIS STAGE", W / 2, H * 0.62, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
+  drawFact(ctx, game.overFact, W, H * 0.79, s, Math.min(W * 0.8, 900 * s), clamp((t - 0.8) / 0.4, 0, 1));
   // the hidden bonus reveals itself only here
   if (t > 0.6 && Math.floor(t * 2) % 3 !== 0) pixelText(ctx, "AN SBA HELICOPTER ESCORT IS STANDING BY FOR YOUR RETRY", W / 2, H * 0.72, fitPx("AN SBA HELICOPTER ESCORT IS STANDING BY FOR YOUR RETRY", Math.max(1, Math.round(2.4 * s)), W - 40 * s), "#ECC444", { align: "center" });
 }
 export function drawPause(ctx, game, W, H) {
   const s = Math.min(W / 1280, H / 720); ctx.fillStyle = "rgba(4,12,36,0.7)"; ctx.fillRect(0, 0, W, H);
   neonText(ctx, "PAUSED", W / 2, H * 0.3, Math.round(10 * s), GOLD, { align: "center" });
-  pixelText(ctx, INPUT.pad.connected ? "MENU BUTTON TO RESUME   VIEW MUSIC " + (game.audio.muted ? "OFF" : "ON") : game.mobile ? "TAP TO RESUME" : "P TO RESUME   M MUSIC " + (game.audio.muted ? "OFF" : "ON"), W / 2, H * 0.52, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
+  pixelText(ctx, INPUT.pad.connected ? "MENU BUTTON TO RESUME   VIEW MUSIC " + (game.audio.muted ? "OFF" : "ON") : game.mobile ? "TAP TO RESUME" : "P TO RESUME   M MUSIC " + (game.audio.muted ? "OFF" : "ON") + "   4 / 5 RADIO", W / 2, H * 0.52, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
   if (game.mobile) {
     const msg = INPUT.steerMode === "tilt"
       ? (INPUT.gyro.active ? "Hold the phone the way you like to drive, then tap ◎ at the top to re-center steering." : (game.gyroNote || "Tap the screen once to turn on tilt steering."))
       : "Drag left and right anywhere on the screen to steer.";
     const fs = Math.round(18 * s), ls = wrapLines(ctx, msg, fs, W * 0.8);
     ls.forEach((l, i) => text(ctx, l, W / 2, H * 0.62 + i * fs * 1.35, fs, LB, { align: "center", weight: 600 }));
+  }
+  drawFact(ctx, game.pauseFact, W, H * (game.mobile ? 0.855 : 0.68), s, Math.min(W * 0.75, 860 * s));   // phones: below the STEER button
+  // controller check: what the game is reading from the pad right now
+  if (INPUT.pad.connected) {
+    const P = INPUT.pad, line = `CONTROLLER: STICK ${P.steer.toFixed(2)}   RT GAS ${(P.rt || 0).toFixed(2)}   LT BRAKE ${(P.lt || 0).toFixed(2)}   X/RB BOOST   B ESCORT${game.mobile ? "" : "   D-PAD RADIO"}`;
+    pixelText(ctx, line, W / 2, H - 34 * s, fitPx(line, Math.max(1, Math.round(1.8 * s)), W - 40 * s), "rgba(222,234,242,0.8)", { align: "center" });
   }
 }
 
