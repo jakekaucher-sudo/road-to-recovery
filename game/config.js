@@ -19,6 +19,16 @@ export const CONFIG = {
     retryFactor: 1.25,        // retrying after time runs out gives 1.25x the stage time
     mobileAssist: { default: 0.2, hurricane: 0.55, tornado: 0.35 },   // share of wind and curve drift removed on phones
   },
+  // ---- Hidden bonus: an SBA helicopter escort, offered on the retry after time runs out.
+  // One per attempt; 1 key, Xbox B, or the helicopter button on phones. The Black Hawk leads the van
+  // and its downwash blows the weather, traffic and road debris out of the way.
+  escort: {
+    duration: 12,             // seconds of escort
+    ahead: 20, altitude: 10,  // where it flies (metres ahead of / above the van), framed below the HUD
+    reach: 150,               // metres ahead that the downwash clears
+    pilot: { name: "SAM", role: "SBA AIR ESCORT", portrait: "art/sam/sam.png", line: "Looks like you need some help, partner. Follow me!" },
+    sfx: { pass: "audio/sfx/heli-pass.m4a", loop: "audio/sfx/heli-loop.m4a", radio: "audio/sfx/radio-click.m4a" },
+  },
   physics: {
     maxSpeed: 12000,          // top speed without boost (shown as topMph)
     topMph: 100,

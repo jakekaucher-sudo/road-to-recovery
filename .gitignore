@@ -27,3 +27,4 @@ assets/mrv-van/reference.png
 
 # Self-signed certificate for the local phone test server (private key: never publish)
 game/tools/.cert/
+review/

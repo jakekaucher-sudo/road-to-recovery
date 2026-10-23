@@ -37,7 +37,7 @@ window.addEventListener("resize", fitUI); window.addEventListener("orientationch
 
 let game = null, engine = null, world = null, title = null, lastState = null;
 if (mobile) ui.addEventListener("touchend", () => { if (!game || game.state === "title") tryHardLock(); }, { passive: true });
-const ctrl = { gas: document.getElementById("gas"), brake: document.getElementById("brake"), pause: document.getElementById("pauseBtn"), recal: document.getElementById("recal"), steer: document.getElementById("steerBtn") };
+const ctrl = { gas: document.getElementById("gas"), brake: document.getElementById("brake"), pause: document.getElementById("pauseBtn"), recal: document.getElementById("recal"), steer: document.getElementById("steerBtn"), heli: document.getElementById("heliBtn") };
 
 const WORLD_STATES = new Set(["stageIntro", "drive", "gameover", "restoring", "results"]);
 function render(dtMs = 16) {
@@ -71,6 +71,7 @@ function render(dtMs = 16) {
   document.body.classList.toggle("racing", ["stageIntro", "drive"].includes(s) && !g.paused);
   document.body.classList.toggle("paused", ["stageIntro", "drive"].includes(s) && !!g.paused);
   document.body.classList.toggle("ontitle", s === "title");
+  document.body.classList.toggle("escortready", !!g.escort.ready && ["stageIntro", "drive"].includes(s));
   document.body.classList.toggle("show3d", s === "title" || WORLD_STATES.has(s));
 }
 
@@ -99,7 +100,7 @@ async function boot() {
     const audio = new Audio();
     if (params.get("mute") === "1") audio.setMuted(true);
     game = new Game(CONFIG, ART, new WorldRenderer(W, H, CONFIG), audio, mobile);
-    game.onStageLoad = (g) => { world.loadStage(g); engine.warm(world.scene, world.cam); };
+    game.onStageLoad = (g) => { world.loadStage(g); world.heliWarm(true); engine.warm(world.scene, world.cam); world.heliWarm(false); };
     world.loadStage(game); engine.warm(world.scene, world.cam); engine.warm(title.scene, title.cam);
     game.autopilot = params.get("autopilot") === "1";
     if (params.has("stage")) { game.loadStage(clamp(+params.get("stage") - 1, 0, 4)); game.beginStage(); }

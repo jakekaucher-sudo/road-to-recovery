@@ -17,4 +17,14 @@ All music is licensed from Artlist under the project owner's plan (downloaded un
 
 The tracks were picked from Artlist's catalog for a French-house / electro feel; none of them are by, or copies of, Daft Punk or Justice. Swap any track in `config.js` → `music`.
 
-Engine sound and effects are generated live with the Web Audio API in `src/audio.js`.
+## Helicopter escort sounds
+
+Built by `tools/make_escort_audio.py` from Artlist sound effects (downloaded unwatermarked on 2026-10-22, originals in `source/sfx/`):
+
+| File | Sound effect | Used for |
+|---|---|---|
+| `sfx/heli-pass.m4a` | Front Row SFX by Pole Position, "Black Hawk Helicopter - Chopper Passing by, Exterior", cut 33.3–38.8 s (the approach up to its loudest point) | The Black Hawk swooping in over the van |
+| `sfx/heli-loop.m4a` | InspectorJ, "Up in The Air - Helicopter Fly By, Loop", written three times over (the game loops the middle copy so there is no gap) | While it leads the van |
+| `sfx/radio-click.m4a` | Daniel Vasquez, "Radio Noise - Microphone Click" | Sam coming on the radio |
+
+Engine sound and other effects are generated live with the Web Audio API in `src/audio.js`.

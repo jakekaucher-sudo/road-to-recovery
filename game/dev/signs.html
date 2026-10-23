@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Sign check</title>
+<style>html,body{margin:0;background:#222}canvas{display:block}</style>
+</head><body>
+<script>addEventListener("error",e=>window.__error=String(e.message||e));addEventListener("unhandledrejection",e=>window.__error=String(e.reason&&e.reason.stack||e.reason));</script>
+<script type="module">
+// Draws every stop's building large, fully restored (top row) and part-way restored (bottom row),
+// so the name signs can be checked for text running off the board. Usage: dev/signs.html
+import { CONFIG } from "../config.js";
+import { drawStorefront } from "../src/buildings.js";
+await document.fonts.ready;
+const B = CONFIG.businesses, cw = 560, c = document.createElement("canvas"); c.width = cw * B.length; c.height = 1000; document.body.appendChild(c);
+const ctx = c.getContext("2d"); ctx.fillStyle = "#6f8fb0"; ctx.fillRect(0, 0, c.width, c.height);
+B.forEach((biz, i) => {
+  for (const [row, p] of [[0, 1], [1, 0.75]]) {
+    ctx.save(); ctx.fillStyle = row ? "#56708c" : "#7d9cbc"; ctx.fillRect(i * cw, row * 500, cw, 500);
+    drawStorefront(ctx, biz, i, i * cw + cw / 2, row * 500 + 470, 0.62, p, 2, {}); ctx.restore();
+  }
+});
+window.__ready = true;
+</script></body></html>

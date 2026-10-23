@@ -8,6 +8,7 @@ import { DEFS, HAZ, carWidth } from "./sprites.js";
 import { CAM } from "./render.js";
 import { INPUT, calibrateGyro, tiltNote, rumble } from "./input.js";
 import { getCutscene } from "./cutscenes.js";
+import { U2M } from "./three/space.js";
 import { RESTORE_DUR } from "./screens.js";
 const easeIO = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
@@ -23,6 +24,7 @@ export class Game {
     this.player = { z: 0, x: 0, y: 0, speed: 0 };
     this.camX = 0; this.camShakeY = 0; this.parallax = 0; this.flash = 0; this.bolt = null; this.nextBolt = 3;
     this.yaw = 0; this.roll = 0; this.hitFx = 0; this.shake = 0; this.windNow = 0;
+    this.escort = { ready: false, active: false, t: 0, out: -1, k: 0 }; this.escortEarned = false;
     this.loadStage(0);
   }
 
@@ -42,6 +44,9 @@ export class Game {
     this.time = Math.max((keepTime ? this.time : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0;
     this.crashes = 0; this.stopT = 0; this.messages = []; this.particles = []; this.tornado = null;
     this.restoreP[this.stageCfg.business] = 0;
+    // the hidden helicopter escort: earned by running out of time, offered once on the retry
+    this.stopEscort(); const E = this.escort; E.ready = this.escortEarned; this.escortEarned = false;
+    if (E.ready && this.audio.ctx) Object.values(this.cfg.escort.sfx).forEach(u => this.audio.loadClip(u).catch(() => {}));
     for (const s of this.track.segs) s.cars = [];
     this.movers = []; for (const s of this.track.segs) for (const h of s.hazards) if (h.vx) this.movers.push(h);
     this.updateDerived();
@@ -97,7 +102,7 @@ export class Game {
     }
     this.clock += DT; this.stateT += DT;
     if (I.mutePressed) this.audio.toggleMute();
-    if (I.pausePressed && ["drive", "stageIntro"].includes(this.state)) { this.paused = !this.paused; this.audio.pauseMusic(this.paused); }
+    if (I.pausePressed && ["drive", "stageIntro"].includes(this.state)) { this.paused = !this.paused; this.audio.pauseMusic(this.paused); this.escortSound(this.paused ? "pause" : "resume"); }
     this.updateMusic();
     if (this.paused) { if (I.confirmPressed && this.mobile) { this.paused = false; this.audio.pauseMusic(false); } return; }
     this.messages.forEach(m => m.t += DT); this.messages = this.messages.filter(m => m.t < m.life);
@@ -114,7 +119,8 @@ export class Game {
       case "stageIntro": {
         const n = Math.floor(T);
         if (n !== this.lastBeep && T > 1.5 && T < 4.6) { this.lastBeep = n; this.audio.sfxPlay(T > 4 ? "go" : "beep"); }
-        this.physics(T > 4.0); if (T > 4.4) this.setState("drive");
+        this.physics(T > 4.0);
+        if (T > 4.4) { this.setState("drive"); if (this.escort.ready) this.msg(this.escortHint(), "#ECC444", 3.2, 3, 0.5); }
         break;
       }
       case "drive": this.physics(true); break;
@@ -127,7 +133,7 @@ export class Game {
         break;
       }
       case "results": if (I.confirmPressed && T > 0.8) { this.audio.sfxPlay("select"); this.nextStage(); } break;
-      case "gameover": if (I.confirmPressed && T > 0.8) { this.loadStage(this.stageIndex); this.time = this.stageTime() * this.cfg.difficulty.retryFactor; this.setState("stageIntro"); this.audio.setMusic(true); } else if (T > 9.5) this.setState("title"); break;
+      case "gameover": if (I.confirmPressed && T > 0.8) { this.escortEarned = true; this.loadStage(this.stageIndex); this.time = this.stageTime() * this.cfg.difficulty.retryFactor; this.setState("stageIntro"); this.audio.setMusic(true); } else if (T > 9.5) this.setState("title"); break;
       case "ending": if (I.confirmPressed && T > 4.5) { this.setState("title"); } break;
     }
     // particles
@@ -176,6 +182,9 @@ export class Game {
     if (controls && I.boostPressed && this.boosts > 0 && this.boostT <= 0 && P.speed > C.maxSpeed * 0.3) { this.boosts--; this.boostT = C.boostTime; this.audio.sfxPlay("boost"); this.msg("BOOST!", "#5CC8FF", 0.9, 6, 0.36); }
     this.boostT = Math.max(0, this.boostT - DT);
     const boosting = this.boostT > 0 ? 1 : 0;
+    // helicopter escort: its downwash holds the weather off (calm 0..1)
+    if (controls && I.escortPressed && this.escort.ready && this.state === "drive" && !this.delivered) this.startEscort();
+    this.updateEscort(); const calm = this.escort.k;
     const surfaceWater = seg.water, sand = seg.hazards.some(h => h.kind === "sand" && Math.abs(P.x - h.offset) < 0.4);
     let maxSp = boosting ? C.boostSpeed : C.maxSpeed;
     if (surfaceWater > 0) maxSp *= 0.68; if (sand) maxSp *= 0.6;
@@ -189,7 +198,7 @@ export class Game {
     if (off && P.speed > C.offRoadLimit) P.speed -= C.offRoadDecel * DT;
     P.speed = clamp(P.speed, 0, C.boostSpeed);
     // lateral: steering, centrifugal force, wind
-    const grip = env.grip * (surfaceWater > 0 ? 0.7 : 1);
+    const grip = lerp(env.grip * (surfaceWater > 0 ? 0.7 : 1), 1, calm * 0.8);
     const steerRate = C.steer * (0.25 + 0.75 * Math.min(1, speedK * 1.4)) * (0.55 + 0.45 * grip);
     P.x += steer * steerRate * DT * (P.speed > 50 ? 1 : 0);
     const assist = this.mobileAssist();
@@ -199,7 +208,7 @@ export class Game {
     if (this.stageCfg.weather === "hurricane") wind = -env.wind * 0.18 - Math.max(0, gustA) * 0.35;      // sea wind from the right
     else if (this.stageCfg.weather === "tornado") wind = gustA * 0.45 * (this.tornado ? Math.sign(this.tornado.x - 0) || 1 : 1);
     else wind = gustA * 0.15;
-    this.windNow = wind * (controls ? 1 : 0) * (1 - assist);
+    this.windNow = wind * (controls ? 1 : 0) * (1 - assist) * (1 - calm);
     P.x += this.windNow * DT * Math.min(1, speedK * 1.5 + 0.2);
     P.x = clamp(P.x, -2.4, 2.4);
     // advance
@@ -289,7 +298,7 @@ export class Game {
     for (const h of this.movers) { if (h.hit) continue; h.offset += h.vx * DT * 0.6; if (Math.abs(h.offset) > 1.05) { h.vx = -h.vx; h.offset = Math.sign(h.offset) * 1.05; } }
     // lightning schedule
     this.flash = Math.max(0, this.flash - DT * 3.5);
-    if (env.lightning > 0.05) {
+    if (env.lightning * (1 - this.escort.k) > 0.05) {
       this.nextBolt -= DT;
       if (this.nextBolt <= 0) { this.flash = 1; this.bolt = { seed: (Math.random() * 1e6) | 0, t: 0 }; this.nextBolt = 1.5 + Math.random() * 6 / env.lightning; setTimeout(() => this.audio.ctx && this.audio.noiseHit(this.audio.ctx.currentTime, 1.4, 0.35, "lowpass", 220, this.audio.sfx), 300); }
     }
@@ -297,23 +306,26 @@ export class Game {
     // tornado: off to the left early, crossing toward the road and growing
     if (this.stageCfg.weather === "tornado") {
       const p = this.progress;
-      this.tornado = { k: env.tornado * clamp((p - 0.04) / 0.1, 0, 1), x: lerp(-0.75, 0.55, clamp((p - 0.1) / 0.8, 0, 1)), s: lerp(0.55, 1.3, clamp(p / 0.85, 0, 1)) };
+      this.tornado = { k: env.tornado * clamp((p - 0.04) / 0.1, 0, 1) * (1 - 0.85 * this.escort.k), x: lerp(-0.75, 0.55, clamp((p - 0.1) / 0.8, 0, 1)), s: lerp(0.55, 1.3, clamp(p / 0.85, 0, 1)) };
       if (p > 0.1 && !this.tornadoWarned) { this.tornadoWarned = true; this.msg("TORNADO WARNING", "#CD2127", 2.2, 6, 0.42); }
     } else this.tornado = null;
     if (this.stageCfg.weather === "hurricane" && this.progress > 0.08 && !this.hurrWarned) { this.hurrWarned = true; this.msg("HURRICANE WINDS FROM THE SEA", "#CD2127", 2.2, 4, 0.42); }
   }
 
   updateTraffic() {
-    const P = this.player, tr = this.track, vanZ = P.z + CAM.playerZ, limit = (tr.finish.zoneStart - 20) * SEG;
+    const P = this.player, tr = this.track, vanZ = P.z + CAM.playerZ, limit = (tr.finish.zoneStart - 20) * SEG, front = this.escortFront();
     for (const s of tr.segs) if (s.cars.length) s.cars.length = 0;
     for (const car of tr.cars) {
       car.z += car.speed * DT;
       car.offset = car.lane0 + Math.sin(this.clock * 0.5 + car.seed) * 0.28 * car.swerve;
       car.braking = car.swerve > 0 && Math.sin(this.clock * 0.5 + car.seed) > 0.85;
+      // the escort's downwash pushes cars out to the shoulder, away from the van's path
+      if (front > 0 && car.z > vanZ - 30 / U2M && car.z < front) car.blow = Math.min(1, (car.blow || 0) + DT * 1.3);
+      if (car.blow) { const side = car.lane0 > 0.1 ? 1 : car.lane0 < -0.1 ? -1 : (hash2(car.seed, 9) > 0.5 ? 1 : -1), k = car.blow * car.blow * (3 - 2 * car.blow); car.offset = lerp(car.offset, side * 1.8, k); car.braking = car.blow < 1; }
       // recycle cars that fall far behind or reach the stop, keeping traffic ahead
       if (car.z < vanZ - 3000 || car.z > limit) {
         const nz = vanZ + (150 + hash2(car.seed, Math.floor(this.clock)) * 70) * SEG;
-        if (nz < limit - 4000) { car.z = nz; car.lane0 = [-0.62, 0, 0.62][Math.floor(hash2(car.seed, Math.floor(this.clock) + 5) * 3)]; }
+        if (nz < limit - 4000) { car.z = nz; car.blow = 0; car.lane0 = [-0.62, 0, 0.62][Math.floor(hash2(car.seed, Math.floor(this.clock) + 5) * 3)]; }
         else car.z = -1e9;
       }
       if (car.z > 0) { const s = findSeg(tr, car.z); s.cars.push(car); }
@@ -334,7 +346,7 @@ export class Game {
     if (this.autoStop && P.speed < 60) this.deliver(0, true);
   }
   deliver(precision, overshot) {
-    this.delivered = true; this.zoneHint = false; this.tornadoWarned = false; this.hurrWarned = false;
+    this.stopEscort(); this.delivered = true; this.zoneHint = false; this.tornadoWarned = false; this.hurrWarned = false;
     const st = this.stageCfg, tl = this.time;
     let stars = tl > st.time * 0.35 ? 3 : tl > st.time * 0.15 ? 2 : 1;
     if (overshot || precision < 0.25) stars = Math.max(1, stars - 1);
@@ -346,7 +358,37 @@ export class Game {
     if (cs) this.startCutscene(cs, "results");
     else this.setState("restoring");
   }
-  timeUp() { this.audio.sfxPlay("timeup"); this.audio.setMusic(false); this.setState("gameover"); }
+  timeUp() { this.stopEscort(); this.audio.sfxPlay("timeup"); this.audio.setMusic(false); this.setState("gameover"); }
+
+  // ------------------------------------------------------------- helicopter escort
+  escortHint() { return INPUT.pad.connected ? "HELICOPTER ESCORT READY: PRESS B" : this.mobile ? "HELICOPTER ESCORT READY: TAP THE HELICOPTER" : "HELICOPTER ESCORT READY: PRESS 1"; }
+  startEscort() {
+    const E = this.escort; E.ready = false; E.active = true; E.t = 0; E.out = -1; E.loop = null; E.loopOn = false;
+    this.messages = this.messages.filter(m => !m.text.startsWith("HELICOPTER ESCORT READY"));
+    rumble(0.45, 500); this.escortSound("start");
+  }
+  updateEscort() {
+    const E = this.escort, D = this.cfg.escort.duration;
+    if (E.active) {
+      E.t += DT;
+      if (E.t > 3.3 && !E.loopOn) this.escortSound("loop");
+      if (E.t >= D) { E.active = false; E.out = 0; this.escortSound("end"); }
+      // debris ahead is blown off the road as the downwash sweeps forward
+      const vanZ = this.player.z + CAM.playerZ, front = this.escortFront(), tr = this.track;
+      for (let i = Math.max(0, Math.floor(vanZ / SEG)); i < Math.min(tr.N, front / SEG); i++)
+        for (const hz of tr.segs[i].hazards) { const d = HAZ[hz.kind]; if (!hz.hit && d && (d.fx === "crash" || d.fx === "bump")) { hz.hit = true; hz.blown = true; } }
+    } else if (E.out >= 0) { E.out += DT; if (E.out > 4) E.out = -1; }
+    E.k = E.active ? sat(E.t / 1.6) * (1 - sat((E.t - (D - 1.2)) / 1.2)) : 0;
+  }
+  // how far ahead (track units) the downwash has reached; -1 when there is no escort
+  escortFront() { const E = this.escort; return E.active && E.t > 0.6 ? this.player.z + CAM.playerZ + this.cfg.escort.reach / U2M * sat((E.t - 0.6) / 1.4) : -1; }
+  escortSound(what) {
+    const A = this.audio, S = this.cfg.escort.sfx, E = this.escort; if (!A.ctx) return;
+    if (what === "start") { A.sample(S.radio, { gain: 0.9 }); A.sample(S.pass, { gain: 1.0, delay: 0.15 }); }
+    else if (what === "loop" || (what === "resume" && E.active && E.loopOn)) { E.loopOn = true; A.sample(S.loop, { loop: true, gain: 0.55, fadeIn: what === "loop" ? 1.2 : 0.3 }).then(h => { if (E.active && !this.paused) E.loop = h; else if (h) h.stop(0.2); }); }
+    else if ((what === "end" || what === "pause" || what === "stop") && E.loop) { E.loop.stop(what === "end" ? 3 : 0.2); E.loop = null; }
+  }
+  stopEscort() { const E = this.escort; if (!E) return; this.escortSound("stop"); E.active = false; E.ready = false; E.out = -1; E.k = 0; E.loopOn = false; }
 
   // ------------------------------------------------------------- autopilot (testing / attract)
   autoDrive() {

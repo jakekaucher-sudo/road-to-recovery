@@ -9,6 +9,7 @@ import { makeSky } from "./sky.js";
 import { buildRoad } from "./road3d.js";
 import { PROPS, carGeometry, CAR_COLORS, CAR_DIM, stopBuildingGeo, setPropDetail } from "./props3d.js";
 import { buildVan } from "./van3d.js";
+import { buildHeli } from "./heli3d.js";
 import { kindSpec } from "../buildings.js";
 import { makeRain, makeParticles, makeFlyingDebris, makeLightning, makeTornado, makeWater } from "./fx3d.js";
 import { textTexture, glowTexture, blobTexture } from "./textures.js";
@@ -57,7 +58,16 @@ export class World3D {
     this.stage = null; this.camState = { pos: new THREE.Vector3(), look: new THREE.Vector3(), heading: 0, init: false };
     this.v3 = new THREE.Vector3(); this.m4 = new THREE.Matrix4(); this.q4 = new THREE.Quaternion(); this.eul = new THREE.Euler(); this.one = new THREE.Vector3(1, 1, 1); this.zero = new THREE.Vector3(0, 0, 0);
     this.lastX = 0; this.yawVis = 0;
+    // the SBA escort helicopter (hidden bonus): built in the background, shown only during an escort
+    this.heli = null;
+    buildHeli(quality).then(h => {
+      this.heli = h; h.root.visible = false; s.add(h.root);
+      const sh = this.heliShadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, opacity: 0.35 }));
+      sh.scale.set(12, 1, 15); sh.visible = false; s.add(sh);
+    }).catch(e => console.warn("helicopter", e));
   }
+  // shaders for the helicopter are compiled with the stage, so its first appearance never stutters
+  heliWarm(on) { if (this.heli) this.heli.root.visible = on; }
 
   // ------------------------------------------------------------------ stage build
   loadStage(game) {
@@ -337,9 +347,12 @@ export class World3D {
     this.updateCamera(game, pos, dt);
     this.sky.mesh.position.copy(this.cam.position);
     const cam = this.cam.position, fwd = this.v3.set(Math.sin(pos.h), 0, -Math.cos(pos.h)).clone(), right = new THREE.Vector3(Math.cos(pos.h), 0, Math.sin(pos.h));
+    const wet = L.wet > 0.5 || game.inWater;
     const windSide = game.stageCfg.weather === "hurricane" ? -1 : Math.sign(game.windNow || 1);
-    this.rain.update(t, cam, L.rain, { x: (L.rainSlant + game.windNow * 0.8) * right.x * 0.6 - fwd.x * Math.min(0.6, speedMs / 60), y: (L.rainSlant + game.windNow * 0.8) * right.z * 0.6 - fwd.z * Math.min(0.6, speedMs / 60) });
-    this.flying.update(t, cam, fwd, right, L.dust * (game.stageCfg.weather === "tornado" || game.stageCfg.weather === "hurricane" ? 1 : 0.3), windSide);
+    const calm = 1 - game.escort.k;                                  // the escort's downwash holds the weather off
+    this.rain.update(t, cam, L.rain * calm, { x: (L.rainSlant + game.windNow * 0.8) * right.x * 0.6 - fwd.x * Math.min(0.6, speedMs / 60), y: (L.rainSlant + game.windNow * 0.8) * right.z * 0.6 - fwd.z * Math.min(0.6, speedMs / 60) });
+    this.flying.update(t, cam, fwd, right, L.dust * calm * (game.stageCfg.weather === "tornado" || game.stageCfg.weather === "hurricane" ? 1 : 0.3), windSide);
+    this.updateHeli(game, cl, vz, dt, t, night, wet);
     this.bolt.update(dt); if (game.bolt && game.bolt.t < dt * 1.5) this.bolt.strike(cam, fwd, right);
     // tornado placed ahead in the world, crossing the road as the stage progresses
     if (game.tornado && game.tornado.k > 0.02) {
@@ -352,7 +365,6 @@ export class World3D {
     if (this.flood.mesh.visible) this.flood.update(t, cam, pos.y - 0.32);
     // particles: wheel spray, dust, sparks from game events
     const pr = this.parts;
-    const wet = L.wet > 0.5 || game.inWater;
     if (speedMs > 6 && (wet || Math.abs(P.x) > 1.05)) {
       const n = game.inWater ? 5 : 1;
       for (let i = 0; i < n; i++) {
@@ -368,6 +380,35 @@ export class World3D {
     }
     game.events.length = 0;
     pr.update(dt);
+  }
+
+  // The escort: swoops in from high behind the camera, over the van, to a lead position ahead,
+  // follows the road for the escort's length, then climbs away to the right.
+  updateHeli(game, cl, vz, dt, t, night, wet) {
+    const H = this.heli, E = game.escort, C = this.cfg.escort; if (!H) return;
+    const on = E.active || E.out >= 0; H.root.visible = this.heliShadow.visible = on; if (!on) return;
+    const ease = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+    const arrive = ease((E.active ? E.t : C.duration) / 2.4), leave = E.active ? 0 : ease(E.out / 3.4);
+    const ahead = lerp(-30, C.ahead + Math.sin(t * 0.45) * 2.5, arrive) + leave * leave * 170;
+    const side = -0.16 + Math.sin(t * 0.6) * 0.08 + leave * 2.4, end = (cl.N - 3) * SEG;
+    const p = worldAt(cl, Math.min(vz + ahead / U2M, end), side, this.hp || (this.hp = {}));
+    // height: once it is leading, hold it at the same place on screen (just under the HUD) whatever
+    // the road does over hills, within 6-24 m of the road; the arrival swoops down from 22 m
+    const cam = this.cam; cam.updateMatrixWorld(); const inv = cam.matrixWorldInverse, v0 = (this.hv0 || (this.hv0 = new THREE.Vector3())).set(p.x, 0, p.z).applyMatrix4(inv), v1 = (this.hv1 || (this.hv1 = new THREE.Vector3())).set(p.x, 1, p.z).applyMatrix4(inv);
+    const T = 0.24 * Math.tan(cam.fov * Math.PI / 360), den = (v1.y - v0.y) + T * (v1.z - v0.z);
+    const framed = Math.max(p.y + 6, Math.min(p.y + 24, (Math.abs(den) > 1e-6 ? (-T * v0.z - v0.y) / den : p.y + C.altitude) - 1.6)) + Math.sin(t * 1.3) * 0.35;
+    const y = lerp(p.y + lerp(22, C.altitude, arrive), framed, arrive * arrive) + leave * leave * 45;
+    const turn = worldAt(cl, Math.min(vz + (ahead + 25) / U2M, end), side, this.hp2 || (this.hp2 = {})).h - p.h;
+    const pitch = -0.07 - 0.2 * Math.sin(Math.PI * arrive) + 0.2 * leave, roll = Math.max(-0.35, Math.min(0.35, -turn * 6)) - leave * 0.5;
+    const crab = 0.3 * arrive * (1 - leave);                          // flies a little crabwise, so its side and tail rotor show
+    H.root.position.set(p.x, y, p.z); H.root.rotation.set(pitch, -p.h + crab, roll, "YXZ");
+    H.update({ dt, spin: 1, night });
+    this.heliShadow.position.set(p.x, p.y + 0.06, p.z); this.heliShadow.rotation.y = -p.h; this.heliShadow.material.opacity = 0.35 * arrive * (1 - leave) * Math.max(0, 1 - (y - p.y - 10) / 30);
+    // rotor downwash: a ring of spray or dust thrown out across the road under it
+    const pr = this.parts, n = Math.round((this.q.high ? 4 : 2) * arrive * (1 - leave));
+    const col = wet ? [0.2, 0.22, 0.25] : [0.22, 0.2, 0.16];
+    for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 4, v = 8 + Math.random() * 7;
+      pr.emit(p.x + Math.cos(a) * r, p.y + 0.2, p.z + Math.sin(a) * r, Math.cos(a) * v, 0.3 + Math.random() * 0.9, Math.sin(a) * v, 0.6 + Math.random() * 0.5, col, 0.6, -0.2, 2.2); }
   }
 
   updateCamera(game, pos, dt) {

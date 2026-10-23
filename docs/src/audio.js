@@ -50,6 +50,21 @@ export class Audio {
       src.start(t); this.clip = { src, g };
     } catch (e) { console.warn("music clip failed", e); }
   }
+  // Recorded sound effects (the helicopter escort), through the effects bus. A looping file holds
+  // three copies of the loop and only the middle one repeats, so encoder padding never leaves a gap.
+  // Resolves to a handle with stop(fade), or null.
+  async sample(url, o = {}) {
+    if (!this.ctx) return null;
+    try {
+      const buf = await this.loadClip(url), t = this.ctx.currentTime + (o.delay || 0);
+      const src = this.ctx.createBufferSource(), g = this.ctx.createGain(), third = buf.duration / 3;
+      src.buffer = buf; if (o.loop) { src.loop = true; src.loopStart = third; src.loopEnd = third * 2; }
+      src.connect(g); g.connect(this.sfx);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(o.gain ?? 1, t + (o.fadeIn || 0.02));
+      src.start(t, o.loop ? third : 0);
+      return { stop: (fade = 0.4) => { const n = this.ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(g.gain.value, n); g.gain.linearRampToValueAtTime(0, n + fade); src.stop(n + fade + 0.05); } };
+    } catch (e) { console.warn("sound failed", url, e); return null; }
+  }
   stopClip(fade = 0.3) {
     if (!this.clip || !this.ctx) return; const { src, g } = this.clip, t = this.ctx.currentTime;
     g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + fade); src.stop(t + fade + 0.05); this.clip = null;

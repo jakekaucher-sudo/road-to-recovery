@@ -1,6 +1,7 @@
 // In-race interface: timer, distance to the business, speed gauge, boosts,
 // roadmap pins, funds delivered (hypothetical), wind and centre messages.
 import { VIEW } from "./orient.js";
+import { INPUT } from "./input.js";
 import { clamp, fmtMoney, plate, rrect, text, hexA, wrapLines, fitSize } from "./util.js";
 import { pixelText, pixelWidth } from "./pixelfont.js";
 
@@ -78,6 +79,7 @@ export function drawHUD(ctx, g, W, H, cfg) {
     ctx.strokeStyle = `rgba(236,196,68,${0.5 + 0.5 * k})`; ctx.lineWidth = 5 * s; ctx.lineCap = "round"; ctx.beginPath();
     const ax = wx + 20 * s; ctx.moveTo(ax - 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 26 * s * dir, wy - 6 * s); ctx.moveTo(ax + 40 * s * dir, wy + 6 * s); ctx.lineTo(ax + 26 * s * dir, wy + 18 * s); ctx.stroke();
   }
+  drawEscort(ctx, g, W, H, cfg, s);
   // ---- centre messages
   for (const m of g.messages) {
     const a = clamp(Math.min(m.t / 0.15, (m.life - m.t) / 0.3), 0, 1);
@@ -86,15 +88,67 @@ export function drawHUD(ctx, g, W, H, cfg) {
   }
 }
 
+// ---- helicopter escort: ready badge, Sam's radio call, escort countdown
+const HELI_ICON = typeof Path2D !== "undefined" ? new Path2D("M3 3h58v3H3zM30 6h4v6h-4zM12 15c0-3 4-4 9-4h13c7 0 12 3 14 8l1 3H21c-5 0-9-3-9-7zM48 17l13-5v4l-12 5zM20 25h3v5h-3zM38 25h3v5h-3zM13 30h33v2.5H13z") : null;
+export function heliIcon(ctx, x, y, w, color) { if (!HELI_ICON) return; ctx.save(); ctx.translate(x, y); ctx.scale(w / 64, w / 64); ctx.fillStyle = color; ctx.fill(HELI_ICON); ctx.restore(); }
+let samImg = null;
+function sam(cfg) { if (!samImg) { samImg = new Image(); samImg.src = cfg.escort.pilot.portrait; } return samImg.complete && samImg.naturalWidth ? samImg : null; }
+const easeBack = (x) => { const c = 1.6; x = clamp(x, 0, 1); return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+function drawEscort(ctx, g, W, H, cfg, s) {
+  const E = g.escort, C = cfg.escort; if (!E) return;
+  if (E.ready) sam(cfg);                                                // have the portrait ready before it is needed
+  // ready badge (keyboard and controller; phones get the pulsing helicopter button)
+  if (E.ready && !g.mobile) {
+    const x = 24 * s, y = H - 214 * s, w = 300 * s, h = 70 * s, pulse = 0.5 + 0.5 * Math.sin(g.clock * 6);
+    plate(ctx, x, y, w, h, 10 * s, "rgba(7,26,63,0.86)", `rgba(236,196,68,${0.55 + 0.45 * pulse})`, 2 + pulse * 1.5);
+    heliIcon(ctx, x + 14 * s, y + 18 * s, 58 * s, GOLD);
+    neonText(ctx, "ESCORT READY", x + 86 * s, y + 14 * s, Math.max(1, Math.round(2.6 * s)), GOLD);
+    pixelText(ctx, INPUT.pad.connected ? "PRESS B" : "PRESS 1", x + 86 * s, y + 44 * s, Math.max(1, Math.round(2 * s)), WHITE);
+  }
+  if (!E.active && E.out < 0) return;
+  const D = C.duration, t = E.active ? E.t : D;
+  // escort countdown
+  if (E.active) {
+    const bw = 300 * s, bx = W / 2 - bw / 2, by = H - 62 * s, left = Math.max(0, D - t);   // bottom centre, clear of the view ahead
+    ctx.fillStyle = "rgba(7,26,63,0.8)"; rrect(ctx, bx - 8 * s, by - 6 * s, bw + 16 * s, 40 * s, 8 * s); ctx.fill();
+    heliIcon(ctx, bx, by - 1 * s, 30 * s, GOLD);
+    pixelText(ctx, "SBA AIR ESCORT", bx + 38 * s, by, Math.max(1, Math.round(2 * s)), GOLD);
+    pixelText(ctx, Math.ceil(left) + " S", bx + bw, by, Math.max(1, Math.round(2 * s)), WHITE, { align: "right" });
+    ctx.fillStyle = "rgba(236,196,68,0.2)"; ctx.fillRect(bx, by + 21 * s, bw, 5 * s); ctx.fillStyle = GOLD; ctx.fillRect(bx, by + 21 * s, bw * left / D, 5 * s);
+  }
+  // Sam on the radio (top right, away from where the helicopter flies)
+  if (!E.active || t > 5.4) return;
+  const w = 560 * s, h = 150 * s, kin = easeBack(t / 0.42), kout = clamp((t - 4.95) / 0.4, 0, 1);
+  const x = W - 12 * s - w + (1 - kin) * (w + 40 * s) + kout * kout * (w + 40 * s), y = 152 * s;   // under the distance bar
+  plate(ctx, x, y, w, h, 12 * s, "rgba(7,26,63,0.95)", GOLD, 3);
+  const ps = h - 24 * s, px = x + 12 * s, py = y + 12 * s;
+  ctx.save(); rrect(ctx, px, py, ps, ps, 10 * s); ctx.clip();
+  const bg = ctx.createLinearGradient(0, py, 0, py + ps); bg.addColorStop(0, "#1d4a8f"); bg.addColorStop(1, "#071634"); ctx.fillStyle = bg; ctx.fillRect(px, py, ps, ps);
+  const img = sam(cfg); if (img) ctx.drawImage(img, px - ps * 0.04, py + ps * 0.02, ps * 1.08, ps * 1.08 * img.naturalHeight / img.naturalWidth);
+  ctx.fillStyle = "rgba(4,12,36,0.16)"; for (let ly = py + ((g.clock * 40) % 4) * s; ly < py + ps; ly += 4 * s) ctx.fillRect(px, ly, ps, 1.5 * s);   // radio-video scanlines
+  ctx.restore();
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 2 * s; rrect(ctx, px, py, ps, ps, 10 * s); ctx.stroke();
+  if (Math.floor(g.clock * 2.5) % 2 === 0) { ctx.fillStyle = RED; ctx.beginPath(); ctx.arc(px + 14 * s, py + 14 * s, 5 * s, 0, Math.PI * 2); ctx.fill(); }
+  pixelText(ctx, "LIVE", px + 24 * s, py + 9 * s, Math.max(1, Math.round(1.6 * s)), WHITE, { shadow: "rgba(0,0,0,0.7)" });
+  const tx = px + ps + 18 * s, nameW = pixelWidth(C.pilot.name, Math.round(3.4 * s));
+  neonText(ctx, C.pilot.name, tx, y + 16 * s, Math.max(1, Math.round(3.4 * s)), GOLD);
+  pixelText(ctx, C.pilot.role, tx + nameW + 14 * s, y + 24 * s, Math.max(1, Math.round(1.8 * s)), NEON);
+  // the line types out, as if it is coming over the radio
+  const fs = Math.round(22 * s), maxW = x + w - 18 * s - tx, lines = wrapLines(ctx, C.pilot.line, fs, maxW, { weight: 700 });
+  let chars = Math.floor(clamp((t - 0.35) / 1.5, 0, 1) * C.pilot.line.length);
+  lines.forEach((l, i) => { if (chars <= 0) return; const part = l.slice(0, chars); chars -= l.length + 1; text(ctx, part, tx, y + 72 * s + i * fs * 1.28, fs, WHITE, { weight: 700, shadow: "rgba(0,0,0,0.5)" }); });
+}
+
 // Stage-start banner with research fact in the SBA two-zone caption style.
 export function drawStageIntro(ctx, g, W, H, cfg, t) {
   const s = Math.min(W / 1280, H / 720), st = g.stageCfg;
   const k = clamp(t / 0.5, 0, 1);
-  const label = `STAGE ${g.stageIndex + 1} ▸ ${st.name}`, px = Math.round(6 * s);
-  const pw = pixelWidth(label, px) + 80 * s;
+  const label = `STAGE ${g.stageIndex + 1} ▸ ${st.name}`, px = Math.round(6 * s), reach = "REACH " + cfg.businesses[st.business].name;
+  let rpx = Math.max(1, Math.round(2.4 * s)); while (rpx > 1 && pixelWidth(reach, rpx) > W - 120 * s) rpx--;
+  const pw = Math.max(pixelWidth(label, px), pixelWidth(reach, rpx)) + 80 * s;
   plate(ctx, W / 2 - pw / 2 - (1 - k) * W, H * 0.2, pw, 110 * s, 12 * s, "rgba(7,26,63,0.92)", GOLD, 3);
   neonText(ctx, label, W / 2 - (1 - k) * W, H * 0.2 + 22 * s, px, GOLD, { align: "center" });
-  pixelText(ctx, "REACH " + cfg.businesses[st.business].name, W / 2 - (1 - k) * W, H * 0.2 + 76 * s, Math.max(1, Math.round(2.4 * s)), WHITE, { align: "center" });
+  pixelText(ctx, reach, W / 2 - (1 - k) * W, H * 0.2 + 76 * s, rpx, WHITE, { align: "center" });
   const fact = cfg.facts[st.fact];
   if (fact) {
     // on phones the GAS / BRAKE buttons sit in the bottom corners: keep the words between them

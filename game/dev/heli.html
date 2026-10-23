@@ -1,0 +1,46 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Helicopter test</title>
+<style>html,body{margin:0;background:#222;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}</script>
+</head><body>
+<script>addEventListener("error",e=>window.__error=String(e.message||e));addEventListener("unhandledrejection",e=>window.__error=String(e.reason&&e.reason.stack||e.reason));</script>
+<script type="module">
+// Turntable for the SBA escort helicopter: heli.html?q=low&van=1
+//   view(azimuth, elevation, distance, lookY, spin 0..1, fov) renders one frame.
+import * as THREE from "three";
+import { buildHeli } from "../src/three/heli3d.js";
+const q = new URLSearchParams(location.search), high = q.get("q") !== "low";
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(1);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9fb7cc); scene.fog = new THREE.Fog(0x9fb7cc, 60, 160);
+const cam = new THREE.PerspectiveCamera(36, innerWidth / innerHeight, 0.1, 400);
+scene.add(new THREE.HemisphereLight(0xcfe2f5, 0x5a5040, 1.1));
+const sun = new THREE.DirectionalLight(0xfff1d6, 2.6); sun.position.set(8, 16, 6); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 60 }); scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: 0x7a7c80 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const pad = new THREE.Mesh(new THREE.RingGeometry(9, 9.4, 64), new THREE.MeshBasicMaterial({ color: 0xe8e2c8 })); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.01; scene.add(pad);
+if (high) {
+  const env = new THREE.Scene(); env.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide,
+    vertexShader: "varying vec3 p; void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+    fragmentShader: "varying vec3 p; void main(){float h=normalize(p).y; gl_FragColor=vec4(mix(vec3(.35,.32,.28),vec3(.75,.85,.95),smoothstep(-.1,.4,h)),1.);}" })));
+  scene.environment = new THREE.PMREMGenerator(r).fromScene(env, 0.04).texture; scene.environmentIntensity = 0.6;
+}
+const heli = await buildHeli({ high }); scene.add(heli.root); heli.update({ dt: 0, spin: 0 });
+if (q.get("van") === "1") {
+  const { loadArt, ART } = await import("../src/assets.js"), { buildVan } = await import("../src/three/van3d.js");
+  await loadArt(() => {}, false); const van = buildVan(ART, { high }); van.root.position.set(5.2, 0, 1); van.root.rotation.y = 0.15; scene.add(van.root);
+  window.placeVan = (x, z, ry) => { van.root.position.set(x, 0, z); van.root.rotation.y = ry; return "ok"; };
+}
+// a strip of road for escort shots
+window.road = () => { const m = new THREE.Mesh(new THREE.PlaneGeometry(9, 200), new THREE.MeshLambertMaterial({ color: 0x3a3c40 })); m.rotation.x = -Math.PI / 2; m.position.y = 0.02; m.receiveShadow = true; scene.add(m); pad.visible = false;
+  for (let z = -100; z < 100; z += 8) { const d = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 3.5), new THREE.MeshBasicMaterial({ color: 0xe8e2c8 })); d.rotation.x = -Math.PI / 2; d.position.set(0, 0.03, z); scene.add(d); } return "ok"; };
+window.decals = () => { const d = heli.decals, out = document.createElement("canvas"); out.width = 900; out.height = 400; const g = out.getContext("2d"); g.fillStyle = "#1C3D73"; g.fillRect(0, 0, 900, 400);
+  if (d.sba) g.drawImage(d.sba, 20, 20, 300, 300 * d.sba.height / d.sba.width); if (d.title) g.drawImage(d.title, 340, 120, 540, 540 * d.title.height / d.title.width);
+  document.body.innerHTML = ""; document.body.appendChild(out); return JSON.stringify({ sba: d.sba && [d.sba.width, d.sba.height], title: d.title && [d.title.width, d.title.height] }); };
+window.view = (az, el, dist, lookY = 2, spin = 0, fov = 36, lookZ = 0, alt = 0) => {
+  heli.root.position.y = alt; cam.fov = fov; cam.updateProjectionMatrix();
+  cam.position.set(Math.sin(az) * dist, el, lookZ + Math.cos(az) * dist); cam.lookAt(0, lookY, lookZ);
+  heli.update({ dt: spin ? 0.016 : 0, spin }); r.render(scene, cam); return "ok";
+};
+window.__ready = true; view(0.9, 4, 22);
+</script></body></html>

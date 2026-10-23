@@ -13,7 +13,7 @@ function kindSpec(kind) {
   switch (kind) {
     case "hardware": return { bw: 720, bh: 540, floors: 2, roof: "parapet", awning: { y: -300, h: 70, w: 740 }, windows: [{ x: -300, y: -270, w: 250, h: 190 }, { x: 60, y: -270, w: 250, h: 190 }], upper: [{ x: -280, y: -500, w: 110, h: 130 }, { x: -60, y: -500, w: 110, h: 130 }, { x: 160, y: -500, w: 110, h: 130 }], door: { x: -40, y: -230, w: 90, h: 230 }, sign: { y: -390, w: 560, h: 76 } };
     case "diner": return { bw: 820, bh: 330, floors: 1, roof: "diner", awning: { y: -236, h: 48, w: 840 }, windows: [{ x: -380, y: -220, w: 200, h: 150 }, { x: -150, y: -220, w: 200, h: 150 }, { x: 160, y: -220, w: 200, h: 150 }], door: { x: 30, y: -220, w: 100, h: 220 }, sign: { y: -300, w: 520, h: 70 }, neon: true };
-    case "garage": return { bw: 800, bh: 380, floors: 1, roof: "pitched", awning: null, windows: [{ x: -370, y: -250, w: 160, h: 130 }], door: { x: -190, y: -230, w: 80, h: 230 }, bay: { x: -60, y: -300, w: 400, h: 300 }, sign: { y: -330, w: 520, h: 70 }, pole: { x: -470, h: 560 } };
+    case "garage": return { bw: 800, bh: 380, floors: 1, roof: "pitched", awning: null, windows: [{ x: -370, y: -250, w: 160, h: 130 }], door: { x: -190, y: -230, w: 80, h: 230 }, bay: { x: -60, y: -300, w: 400, h: 300 }, sign: { y: -330, w: 520, h: 70 }, pole: { x: -430, h: 560 } };
     case "seafood": return { bw: 700, bh: 400, floors: 1, roof: "pitched", awning: { y: -270, h: 60, w: 720 }, windows: [{ x: -300, y: -250, w: 200, h: 160 }, { x: 110, y: -250, w: 200, h: 160 }], door: { x: -50, y: -240, w: 100, h: 240 }, sign: { y: -340, w: 520, h: 74 }, shutters: true, deck: true };
     // homeowner: two-storey family home with porch and chimney
     case "house": return { bw: 600, bh: 420, floors: 2, roof: "pitched", roofH: 190, awning: null, porch: { y: -220, w: 640, h: 26 }, chimney: true,
@@ -23,11 +23,11 @@ function kindSpec(kind) {
     case "condo": return { bw: 720, bh: 620, floors: 3, roof: "parapet", awning: { y: -250, h: 46, w: 300 },
       windows: [{ x: -330, y: -200, w: 170, h: 140 }, { x: 160, y: -200, w: 170, h: 140 }],
       upper: [-330, -130, 70, 230].flatMap((x) => [{ x, y: -400, w: 100, h: 110 }, { x, y: -570, w: 100, h: 110 }]), balconies: true,
-      door: { x: -50, y: -230, w: 100, h: 230 }, sign: { y: -296, w: 420, h: 60 } };
+      door: { x: -50, y: -230, w: 100, h: 230 }, sign: { y: -296, w: 480, h: 64 } };
     // nonprofit: community church with steeple and rose window
     case "church": return { bw: 560, bh: 360, floors: 1, roof: "pitched", roofH: 210, awning: null, steeple: true,
       windows: [{ x: -240, y: -280, w: 90, h: 190, arch: true }, { x: 150, y: -280, w: 90, h: 190, arch: true }],
-      door: { x: -60, y: -230, w: 120, h: 230, arch: true }, sign: { y: -60, w: 300, h: 70, style: "lawn", x: -470 } };
+      door: { x: -60, y: -230, w: 120, h: 230, arch: true }, sign: { y: -70, w: 280, h: 100, style: "lawn", x: -375, lines: 2 } };
     default: return { bw: 700, bh: 420, floors: 1, roof: "parapet", awning: { y: -290, h: 72, w: 720 }, windows: [{ x: -310, y: -260, w: 230, h: 180 }, { x: 90, y: -260, w: 230, h: 180 }], door: { x: -50, y: -230, w: 100, h: 230 }, sign: { y: -380, w: 540, h: 74 } };
   }
 }
@@ -120,10 +120,12 @@ function drawGlass(ctx, x, y, w, h, q, env, seed, D, brokenK) {
 }
 
 function signText(ctx, name, cx, y, w, h, color, missingK, returnK, seed) {
-  const size = Math.min(h * 0.62, (w * 0.92) / Math.max(6, name.length) * 1.75);
-  ctx.font = `800 ${Math.round(size)}px "Source Sans 3","Helvetica Neue",Helvetica,Arial,sans-serif`;
+  // as tall as the board allows, then measured and shrunk until the whole name sits inside it
+  const font = (sz) => `800 ${sz}px "Source Sans 3","Helvetica Neue",Helvetica,Arial,sans-serif`, width = () => [...name].reduce((a, ch) => a + ctx.measureText(ch).width, 0);
+  let size = Math.round(h * 0.62); ctx.font = font(size);
+  const tw = width(); if (tw > w) { size = Math.floor(size * w / tw); ctx.font = font(size); }
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  const total = ctx.measureText(name).width;
+  const total = width();
   let x = cx - total / 2;
   for (let i = 0; i < name.length; i++) {
     const ch = name[i], cw = ctx.measureText(ch).width;
@@ -347,7 +349,13 @@ export function drawStorefront(ctx, biz, idx, cx, baseY, S, p, t, env = {}) {
     const onNavy = signC[0] + signC[1] + signC[2] < 400;
     ctx.fillStyle = rgbStr(boardC); rrect(ctx, -sw / 2, -sh / 2, sw, sh, 8); ctx.fill();
     ctx.strokeStyle = rgbStr(onNavy ? GOLD : NAVY); ctx.lineWidth = 4; rrect(ctx, -sw / 2 + 6, -sh / 2 + 6, sw - 12, sh - 12, 6); ctx.stroke();
-    if (detail) signText(ctx, biz.signText || biz.name, 0, 2, sw - 30, sh, rgbStr(onNavy ? WHITE : NAVY), D.missingLetters, q.signage, seed + 300);
+    if (detail) {
+      const name = biz.signText || biz.name, tc = rgbStr(onNavy ? WHITE : NAVY), cut = name.lastIndexOf(" ");
+      if (s.lines === 2 && cut > 0) {                            // taller boards: last word on its own line, so the letters can be bigger
+        signText(ctx, name.slice(0, cut), 0, -sh * 0.2, sw - 44, sh * 0.5, tc, D.missingLetters, q.signage, seed + 300);
+        signText(ctx, name.slice(cut + 1), 0, sh * 0.23, sw - 44, sh * 0.5, tc, D.missingLetters, q.signage, seed + 340);
+      } else signText(ctx, name, 0, 2, sw - 44, sh, tc, D.missingLetters, q.signage, seed + 300);
+    }
     // marquee bulbs
     if (q.lights > 0 && detail && !s.style) { ctx.fillStyle = `rgba(255,236,160,${q.lights})`; const n = Math.round(sw / 36); for (let i = 0; i <= n; i++) { const bx = -sw / 2 + i * sw / n, on = Math.sin(t * 6 + i) > -0.3 ? 1 : 0.5; ctx.globalAlpha = q.lights * on; ctx.beginPath(); ctx.arc(bx, -sh / 2 - 6, 5, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(bx, sh / 2 + 6, 5, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; }
     ctx.restore();

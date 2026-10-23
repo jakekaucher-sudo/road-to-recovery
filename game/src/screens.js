@@ -70,8 +70,10 @@ export function drawBriefing(ctx, game, W, H, t) {
     const x = W / 2 + (i - 2) * 220 * s, y = H * 0.66;
     ctx.globalAlpha = a; ctx.fillStyle = GOLD; ctx.beginPath(); ctx.moveTo(x, y + 26 * s); ctx.lineTo(x - 16 * s, y); ctx.arc(x, y - 5 * s, 16 * s, Math.PI * 0.85, Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(x, y - 5 * s, 6 * s, 0, Math.PI * 2); ctx.fill();
     pixelText(ctx, String(i + 1), x, y + 36 * s, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
-    text(ctx, b.name, x, y + 82 * s, Math.round(14 * s), LB, { align: "center", weight: 700 });
-    text(ctx, b.type.charAt(0) + b.type.slice(1).toLowerCase() + "  \u2022  " + game.cfg.stages[i].name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()), x, y + 102 * s, Math.round(13 * s), NEON, { align: "center", weight: 500 });
+    const fs = Math.round(14 * s), names = wrapLines(ctx, b.name, fs, 200 * s, { weight: 700 }), extra = (names.length - 1) * 17 * s;
+    names.forEach((l, j) => text(ctx, l, x, y + 82 * s + j * 17 * s, fitSize(ctx, l, fs, 205 * s, { weight: 700 }), LB, { align: "center", weight: 700 }));
+    const sub = b.type.charAt(0) + b.type.slice(1).toLowerCase() + "  \u2022  " + game.cfg.stages[i].name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    text(ctx, sub, x, y + 102 * s + extra, fitSize(ctx, sub, Math.round(13 * s), 205 * s, { weight: 500 }), NEON, { align: "center", weight: 500 });
     ctx.globalAlpha = 1;
   });
   if (t > 1 && Math.floor(t * 2) % 2 === 0) pixelText(ctx, INPUT.pad.connected ? "PRESS A" : game.mobile ? "TAP TO GO" : "PRESS ENTER", W / 2, H - 40 * s, Math.max(1, Math.round(3 * s)), NEON, { align: "center" });
@@ -87,16 +89,19 @@ export function drawRestoration(ctx, game, W, H, t) {
   // contribution card
   const cin = easeOutBack(stage(t, 1.0, 1.5)), cout = smooth(6.2, 6.6, t);
   if (cin > 0 && cout < 1) {
-    const cw = 640 * s, chh = 200 * s, cx = W / 2 - cw / 2, cy = H * 0.09 - (1 - cin) * 60 * s;
+    const foot = "Illustrating an SBA " + (biz.loan || "disaster loan").toLowerCase() + "  •  " + game.cfg.labels.hypothetical, ffs = Math.round(13 * s);
+    const cw = 640 * s, feet = fitSize(ctx, foot, ffs, cw - 48 * s, { italic: true, weight: 400 }) < ffs ? foot.split("  •  ") : [foot];
+    const chh = (200 + (feet.length - 1) * 17) * s, cx = W / 2 - cw / 2, cy = H * 0.09 - (1 - cin) * 60 * s;
     ctx.save(); ctx.globalAlpha = cin * (1 - cout);
     plate(ctx, cx, cy, cw, chh, 12 * s, "rgba(7,26,63,0.94)", GOLD, 3);
     neonText(ctx, "RECOVERY FUNDS DELIVERED", W / 2, cy + 18 * s, Math.round(3 * s), GOLD, { align: "center" });
-    text(ctx, biz.name + "  •  " + biz.town, W / 2, cy + 68 * s, Math.round(22 * s), WHITE, { align: "center", weight: 700 });
+    const who = biz.name + "  •  " + biz.town;
+    text(ctx, who, W / 2, cy + 68 * s, fitSize(ctx, who, Math.round(22 * s), cw - 48 * s, { weight: 700 }), WHITE, { align: "center", weight: 700 });
     const k = easeInOut(stage(t, 1.4, 2.8));
     neonText(ctx, fmtMoney(biz.amount * k), W / 2, cy + 84 * s, Math.round(7 * s), WHITE, { align: "center", glow: GOLD });
     ctx.fillStyle = "rgba(255,255,255,0.12)"; rrect(ctx, cx + 30 * s, cy + 150 * s, cw - 60 * s, 14 * s, 5 * s); ctx.fill();
     ctx.fillStyle = GOLD; if (k > 0) { rrect(ctx, cx + 30 * s, cy + 150 * s, Math.max(10 * s, (cw - 60 * s) * k), 14 * s, 5 * s); ctx.fill(); }
-    text(ctx, "Illustrating an SBA " + (biz.loan || "disaster loan").toLowerCase() + "  •  " + game.cfg.labels.hypothetical, W / 2, cy + chh - 12 * s, Math.round(13 * s), "rgba(222,234,242,0.85)", { align: "center", italic: true, weight: 400 });
+    feet.forEach((l, j) => text(ctx, l, W / 2, cy + chh - 12 * s - (feet.length - 1 - j) * 17 * s, fitSize(ctx, l, ffs, cw - 48 * s, { italic: true, weight: 400 }), "rgba(222,234,242,0.85)", { align: "center", italic: true, weight: 400 }));
     ctx.restore();
   }
   if (p > 0 && p < 1) neonText(ctx, "RESTORING " + Math.round(p * 100) + "%", W / 2, H - H * 0.07 - 34 * s, Math.round(3 * s), GOLD, { align: "center" });
@@ -106,7 +111,7 @@ export function drawRestoration(ctx, game, W, H, t) {
     ctx.save(); ctx.translate(W / 2, H * 0.24); ctx.scale(k, k); ctx.rotate(-0.05);
     plate(ctx, -300 * s, -55 * s, 600 * s, 110 * s, 12 * s, "rgba(60,124,84,0.95)", WHITE, 3);
     neonText(ctx, biz.restoredTitle || "RESTORED", 0, -32 * s, Math.round(5 * s), WHITE, { align: "center", glow: GREEN });
-    pixelText(ctx, biz.name, 0, 18 * s, Math.max(1, Math.round(2.5 * s)), "#DFF5E3", { align: "center" });
+    pixelText(ctx, biz.name, 0, 18 * s, fitPx(biz.name, Math.max(1, Math.round(2.5 * s)), 560 * s), "#DFF5E3", { align: "center" });
     ctx.restore();
   }
   if (t > 1.2) pixelText(ctx, INPUT.pad.connected ? "A TO SKIP" : game.mobile ? "TAP TO SKIP" : "ENTER TO SKIP", W - 20 * s, H - H * 0.035 - 8 * s, Math.max(1, Math.round(2 * s)), "rgba(222,234,242,0.6)", { align: "right" });
@@ -120,7 +125,8 @@ export function drawResults(ctx, game, W, H, t) {
   ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(k, k); ctx.translate(-W / 2, -H / 2);
   plate(ctx, cx, cy, cw, ch, 14 * s, "rgba(7,26,63,0.96)", GOLD, 3);
   neonText(ctx, `STAGE ${game.stageIndex + 1} CLEAR`, W / 2, cy + 26 * s, Math.round(6 * s), GOLD, { align: "center" });
-  text(ctx, biz.restoredLine || biz.name, W / 2, cy + 104 * s, Math.round(22 * s), WHITE, { align: "center", weight: 700 });
+  const line = biz.restoredLine || biz.name;
+  text(ctx, line, W / 2, cy + 104 * s, fitSize(ctx, line, Math.round(22 * s), cw - 60 * s, { weight: 700 }), WHITE, { align: "center", weight: 700 });
   const rows = [["FUNDS DELIVERED", fmtMoney(biz.amount) + "*"], ["TIME LEFT", r.timeLeft.toFixed(1) + " S"], ["STOP ACCURACY", r.overshot ? "OVERSHOT" : Math.round(r.precision * 100) + "%"], ["CRASHES", String(r.crashes)]];
   rows.forEach(([a, b], i) => { const y = cy + 140 * s + i * 40 * s; pixelText(ctx, a, cx + 60 * s, y, Math.max(1, Math.round(3 * s)), LB); pixelText(ctx, b, cx + cw - 60 * s, y, Math.max(1, Math.round(3 * s)), i === 0 ? GOLD : WHITE, { align: "right" }); });
   for (let i = 0; i < 3; i++) { const on = i < r.stars, sx = W / 2 + (i - 1) * 70 * s, sy = cy + 330 * s, sk = easeOutBack(stage(t, 0.5 + i * 0.2, 0.8 + i * 0.2)); if (sk <= 0) continue; star(ctx, sx, sy, 26 * s * sk, on ? GOLD : "rgba(222,234,242,0.2)"); }
@@ -128,6 +134,8 @@ export function drawResults(ctx, game, W, H, t) {
   ctx.restore();
   if (t > 1 && Math.floor(t * 2) % 2 === 0) neonText(ctx, game.stageIndex < 4 ? (game.mobile ? "TAP FOR NEXT STAGE" : "ENTER FOR NEXT STAGE") : (game.mobile ? "TAP TO FINISH" : "ENTER TO FINISH"), W / 2, cy + ch + 30 * s, Math.round(3 * s), NEON, { align: "center" });
 }
+// Largest whole pixel size <= px at which pixel text fits in maxW.
+function fitPx(str, px, maxW) { while (px > 1 && pixelWidth(str, px) > maxW) px--; return px; }
 function star(ctx, x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); }
 
 export function drawGameOver(ctx, game, W, H, t) {
@@ -136,6 +144,8 @@ export function drawGameOver(ctx, game, W, H, t) {
   const left = Math.max(0, Math.ceil(9 - t));
   neonText(ctx, "CONTINUE?  " + left, W / 2, H * 0.5, Math.round(6 * s), GOLD, { align: "center" });
   pixelText(ctx, game.mobile ? "TAP TO RETRY THIS STAGE" : "PRESS ENTER TO RETRY THIS STAGE", W / 2, H * 0.62, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
+  // the hidden bonus reveals itself only here
+  if (t > 0.6 && Math.floor(t * 2) % 3 !== 0) pixelText(ctx, "AN SBA HELICOPTER ESCORT IS STANDING BY FOR YOUR RETRY", W / 2, H * 0.72, fitPx("AN SBA HELICOPTER ESCORT IS STANDING BY FOR YOUR RETRY", Math.max(1, Math.round(2.4 * s)), W - 40 * s), "#ECC444", { align: "center" });
 }
 export function drawPause(ctx, game, W, H) {
   const s = Math.min(W / 1280, H / 720); ctx.fillStyle = "rgba(4,12,36,0.7)"; ctx.fillRect(0, 0, W, H);
@@ -171,12 +181,12 @@ export function drawEnding(ctx, game, W, H, t) {
     drawStorefront(ctx, biz, i, x + cw / 2, y + 150 * s, 0.18 * s, 1, t, {});
     ctx.restore();
     // stacked from measured heights so nothing overlaps at any screen size
-    const nameSize = fitSize(ctx, biz.name, Math.round(14 * s), cw - 16 * s, { weight: 800 });
-    text(ctx, biz.name, x + cw / 2, y + 194 * s, nameSize, WHITE, { align: "center", weight: 800 });
-    const mpx = Math.max(1, Math.round(3 * s)), tpx = Math.max(1, Math.round(2 * s)), my = y + 202 * s, ty = my + 7 * mpx + 8 * s;
+    const ns = Math.round(14 * s), names = fitSize(ctx, biz.name, ns, cw - 16 * s, { weight: 800 }) < ns ? wrapLines(ctx, biz.name, ns, cw - 16 * s, { weight: 800 }) : [biz.name];
+    names.forEach((l, j) => text(ctx, l, x + cw / 2, y + 192 * s + j * 16 * s, fitSize(ctx, l, ns, cw - 16 * s, { weight: 800 }), WHITE, { align: "center", weight: 800 }));
+    const mpx = Math.max(1, Math.round(3 * s)), tpx = Math.max(1, Math.round(2 * s)), my = y + 200 * s + (names.length - 1) * 16 * s, ty = my + 7 * mpx + 7 * s;
     pixelText(ctx, fmtMoney(biz.amount), x + cw / 2, my, mpx, GOLD, { align: "center" });
     pixelText(ctx, biz.type, x + cw / 2, ty, tpx, NEON, { align: "center" });
-    const st = (game.results[i] || { stars: 0 }).stars, sy = Math.max(ty + 7 * tpx + 16 * s, y + 262 * s);
+    const st = (game.results[i] || { stars: 0 }).stars, sy = Math.min(Math.max(ty + 7 * tpx + 15 * s, y + 262 * s), y + 276 * s);
     for (let j = 0; j < 3; j++) star(ctx, x + cw / 2 + (j - 1) * 30 * s, sy, 11 * s, j < st ? GOLD : "rgba(222,234,242,0.2)");
     ctx.restore();
   });
@@ -186,14 +196,15 @@ export function drawEnding(ctx, game, W, H, t) {
     pixelText(ctx, "TOTAL RECOVERY FUNDS DELIVERED", W / 2, 440 * s, Math.max(1, Math.round(3 * s)), WHITE, { align: "center" });
     neonText(ctx, fmtMoney(total * easeOut(stage(t, 2.2, 3.4))), W / 2, 468 * s, Math.round(8 * s), GOLD, { align: "center", glow: RED });
     pixelText(ctx, "RATING " + stars + " / 15 ★", W / 2, 540 * s, Math.max(1, Math.round(3 * s)), NEON, { align: "center" });
-    text(ctx, cfg.labels.fictional, W / 2, 580 * s, Math.round(14 * s), "rgba(222,234,242,0.8)", { align: "center", italic: true, weight: 400 });
+    text(ctx, cfg.labels.fictional, W / 2, 580 * s, fitSize(ctx, cfg.labels.fictional, Math.round(14 * s), W - 40 * s, { italic: true, weight: 400 }), "rgba(222,234,242,0.8)", { align: "center", italic: true, weight: 400 });
     ctx.restore();
   }
   const ck = smooth(3.4, 4.0, t);
   if (ck > 0) {
     ctx.save(); ctx.globalAlpha = ck;
     text(ctx, cfg.labels.closing, W / 2, 630 * s, Math.round(32 * s), WHITE, { align: "center", italic: true, weight: 300 });
-    text(ctx, "SBA Disaster Recovery  •  " + cfg.labels.audiences + "  •  " + cfg.labels.learnMore, W / 2, 664 * s, Math.round(15 * s), LB, { align: "center", weight: 500 });
+    const tag = "SBA Disaster Recovery  •  " + cfg.labels.audiences + "  •  " + cfg.labels.learnMore;
+    text(ctx, tag, W / 2, 664 * s, fitSize(ctx, tag, Math.round(15 * s), W - 40 * s, { weight: 500 }), LB, { align: "center", weight: 500 });
     ctx.restore();
   }
   if (t > 4.5 && Math.floor(t * 2) % 2 === 0) pixelText(ctx, game.mobile ? "TAP TO PLAY AGAIN" : "PRESS ENTER TO PLAY AGAIN", W / 2, H - 26 * s, Math.max(1, Math.round(2.5 * s)), NEON, { align: "center" });

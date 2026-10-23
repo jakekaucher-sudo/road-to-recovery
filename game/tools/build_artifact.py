@@ -25,9 +25,9 @@ for d in ("src", "vendor"):
         for f in files:
             s = os.path.join(base, f); r = os.path.relpath(s, GAME)
             copy(s, os.path.join(DIST, r), up if f.endswith(".js") and d == "src" else None)
-for d in ("art/intro", "art/ending"):
+for d in ("art/intro", "art/ending", "art/sam"):
     for f in os.listdir(os.path.join(GAME, d)):
-        if f.endswith(".jpg"): copy(os.path.join(GAME, d, f), os.path.join(DIST, d, f))
+        if f.endswith((".jpg", ".png")): copy(os.path.join(GAME, d, f), os.path.join(DIST, d, f))
 for base, _, files in os.walk(os.path.join(GAME, "audio")):
     if "source" in base: continue
     for f in files:

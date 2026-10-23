@@ -34,6 +34,7 @@ It prints an address like `https://192.168.50.148:8443/game/`. Open it on the ph
 | Pause | P or Esc | Menu button | ❚❚ button |
 | Re-center steering | — | — | ◎ button (hold the phone how you like, then tap) |
 | Music on / off | M | View button | — |
+| Helicopter escort (only after a time-up, once per try) | 1 | B | The pulsing **ESCORT** helicopter button above GAS |
 
 **Controllers.** Any controller the browser reads as a standard gamepad works, including Xbox controllers over USB or Bluetooth on a computer, iPhone, iPad or Android. Press any button once so the browser notices it. The title screen then shows the controller layout, and crashes rumble where the controller supports it.
 
@@ -60,6 +61,7 @@ If tilting steers the wrong way on a particular device, add `?invertTilt=1` to t
 - **Avoid trouble.** Traffic, debris, fallen branches, logs, hay bales and downed poles slow you sharply. Off-road is slow. Curves push you outward, more so on wet roads.
 - **Stop in the gold zone.** Signs count down 1500, 1000 and 500 feet to a neon RECOVERY STOP gate. Brake to a stop in the glowing gold zone to deliver help. Stopping near the middle scores better. If you overshoot, the van backs up and you lose a star.
 - **Watch the place recover.** The stop then restores in stages: debris, damage, materials, windows, signage and lights.
+- **Hidden bonus: the SBA helicopter escort.** Run out of time and the time-up screen says an escort is standing by. On the retry, press **1** (keyboard), **B** (Xbox) or tap the **ESCORT** helicopter button (phones). Pilot Sam comes on the radio ("Looks like you need some help, partner. Follow me!") and an SBA Black Hawk in the van's paint swoops in overhead and leads the van for 12 seconds. Its downwash blows the rain, wind and dust away, pushes traffic out to the shoulders and blasts road debris off the road. One escort per try; it is gone once the stage is cleared. Settings are in `escort` in `config.js`; the helicopter is `src/three/heli3d.js` (built in code like the van, paint from the van's official artwork) and `dev/heli.html` is a turntable for it.
 - **Ratings.** Each stop earns 1–3 stars for time left, stop accuracy and crashes. The ending shows all five recoveries, the total funds delivered and your rating out of 15.
 
 ## Facts and fiction
@@ -122,6 +124,7 @@ Licensed from the owner's Artlist plan: French-house / electro tracks for each s
 ## Testing tools
 
 - `?autopilot=1` makes the van drive itself. `?stage=3` starts at stage 3. `?mobile=1` forces the phone layout.
+- `dev/heli.html` (add `?van=1` to park the van beside it) is a turntable for the escort helicopter; `dev/signs.html` draws every stop's building large to check the name signs; `dev/cutout.html` with `tools/save_cutout.py` cuts a character portrait out of a white background.
 - `python3 game/tools/playtest.py "QUERY" actions.json OUTDIR [WxH]` runs the game in headless Chrome, steps the simulation and saves screenshots.
 
 ## Graphics quality and performance
