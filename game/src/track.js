@@ -152,7 +152,7 @@ export function buildTrack(stage, index, cfg) {
     segs[i].hazards.push(hz);
   }
   // ---- time pickups ---------------------------------------------------------
-  const nPick = Math.round(N / 480);
+  const nPick = Math.round(N / 900);                 // a handful of +3 s pickups a stage (the clock is meant to be tight)
   for (let k = 0; k < nPick; k++) {
     let i = 150 + Math.floor((k + 0.5) / nPick * (zoneStart - 300));
     while (nearJump(i, 20)) i += 10;

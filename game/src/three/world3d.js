@@ -7,7 +7,7 @@ import { U2M, SEGM, HALFW, buildCenterline, worldAt, pitchAt } from "./space.js"
 import { LOOKS } from "./look.js";
 import { makeSky } from "./sky.js";
 import { buildRoad } from "./road3d.js";
-import { PROPS, carGeometry, CAR_COLORS, CAR_DIM, stopBuildingGeo, setPropDetail } from "./props3d.js";
+import { PROPS, carParts, CAR_COLORS, CAR_DIM, stopBuildingGeo, setPropDetail } from "./props3d.js";
 import { buildVan } from "./van3d.js";
 import { buildHeli } from "./heli3d.js";
 import { buildJumps } from "./jumps3d.js";
@@ -179,12 +179,15 @@ export class World3D {
     // ---- traffic
     const types = {}; track.cars.forEach(c => (types[c.type] = types[c.type] || []).push(c));
     for (const type in types) {
-      const list = types[type], im = new THREE.InstancedMesh(carGeometry(type), this.q.high ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }) : new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
+      const list = types[type], parts = carParts(type), im = new THREE.InstancedMesh(parts.body, this.q.high ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }) : new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = this.q.shadows; im.frustumCulled = false;
       list.forEach((c, n) => im.setColorAt(n, tmpC.set(type === "utility" || type === "boxtruck" ? "#eef0f3" : CAR_COLORS[c.color % CAR_COLORS.length])));
       const tl = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.16, 0.05), new THREE.MeshBasicMaterial({ color: 0xff2a24 }), list.length * 2); tl.instanceMatrix.setUsage(THREE.DynamicDrawUsage); tl.frustumCulled = false;
       const blob = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }), list.length); blob.frustumCulled = false;
-      group.add(im, tl, blob); st.cars[type] = { list, im, tl, blob, dim: CAR_DIM[type] };
+      // glass, tyres, rims and lamps keep their own colours (the paint above takes each car's colour)
+      const imD = new THREE.InstancedMesh(parts.detail, this.q.high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 }) : new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
+      imD.instanceMatrix.setUsage(THREE.DynamicDrawUsage); imD.frustumCulled = false; imD.castShadow = im.castShadow;
+      group.add(im, imD, tl, blob); st.cars[type] = { list, im, imD, tl, blob, dim: CAR_DIM[type] };
       if (type === "utility") { const bc = new THREE.InstancedMesh(new THREE.BoxGeometry(1.2, 0.16, 0.3), new THREE.MeshBasicMaterial({ color: 0xffa020 }), list.length); bc.instanceMatrix.setUsage(THREE.DynamicDrawUsage); bc.frustumCulled = false; group.add(bc); st.cars[type].beacon = bc; }
     }
     // ---- jumps: the drawbridge (stage 1) and the car carrier (stage 2)
@@ -322,18 +325,18 @@ export class World3D {
       const C = st.cars[type]; let n = 0;
       C.list.forEach((car, idx) => {
         const visible = car.z > vz - 60 / U2M && car.z < vz + this.q.far * 0.9 / U2M;
-        if (!visible) { this.m4.compose(this.zero, this.q4.identity(), this.zero); C.im.setMatrixAt(idx, this.m4); C.tl.setMatrixAt(idx * 2, this.m4); C.tl.setMatrixAt(idx * 2 + 1, this.m4); C.blob.setMatrixAt(idx, this.m4); if (C.beacon) C.beacon.setMatrixAt(idx, this.m4); return; }
+        if (!visible) { this.m4.compose(this.zero, this.q4.identity(), this.zero); C.im.setMatrixAt(idx, this.m4); C.imD.setMatrixAt(idx, this.m4); C.tl.setMatrixAt(idx * 2, this.m4); C.tl.setMatrixAt(idx * 2 + 1, this.m4); C.blob.setMatrixAt(idx, this.m4); if (C.beacon) C.beacon.setMatrixAt(idx, this.m4); return; }
         const zI = car.z - (car.speed || 0) * (1 - ra) / 60;   // smoothed like the van
         const p = worldAt(cl, zI, car.offset), yaw = -p.h - Math.cos(t * 0.5 + car.seed) * 0.08 * car.swerve;
         this.q4.setFromEuler(this.eul.set(pitchAt(cl, zI), yaw, 0, "YXZ"));
-        this.m4.compose(this.v3.set(p.x, p.y, p.z), this.q4, this.one); C.im.setMatrixAt(idx, this.m4);
+        this.m4.compose(this.v3.set(p.x, p.y, p.z), this.q4, this.one); C.im.setMatrixAt(idx, this.m4); C.imD.setMatrixAt(idx, this.m4);
         const back = C.dim[1] / 2 + 0.02, w = C.dim[0] / 2 - 0.25, sx = Math.sin(yaw), cz = Math.cos(yaw);
         const bright = car.braking ? 1.6 : 1;
         for (const k of [0, 1]) { const ox = (k ? w : -w); this.m4.compose(this.v3.set(p.x + cz * ox + sx * back, p.y + 0.85, p.z - sx * ox + cz * back), this.q4, this.v3.clone().set(bright, bright, 1)); C.tl.setMatrixAt(idx * 2 + k, this.m4); }
         this.m4.compose(this.v3.set(p.x, p.y + 0.03, p.z), this.q4, this.v3.clone().set(C.dim[0] * 1.5, 1, C.dim[1] * 1.2)); C.blob.setMatrixAt(idx, this.m4);
         if (C.beacon) { const on = Math.sin(t * 12 + car.seed) > 0 ? 1 : 0.01; this.m4.compose(this.v3.set(p.x, p.y + 2.15, p.z), this.q4, this.v3.clone().set(on, on, on)); C.beacon.setMatrixAt(idx, this.m4); }
       });
-      C.im.instanceMatrix.needsUpdate = C.tl.instanceMatrix.needsUpdate = C.blob.instanceMatrix.needsUpdate = true; if (C.beacon) C.beacon.instanceMatrix.needsUpdate = true;
+      C.im.instanceMatrix.needsUpdate = C.imD.instanceMatrix.needsUpdate = C.tl.instanceMatrix.needsUpdate = C.blob.instanceMatrix.needsUpdate = true; if (C.beacon) C.beacon.instanceMatrix.needsUpdate = true;
     }
     // ---- hazards: drift, tumble, fly away when hit
     for (const hz of st.hz) {

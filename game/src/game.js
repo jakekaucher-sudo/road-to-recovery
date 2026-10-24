@@ -14,7 +14,7 @@ import { Radio } from "./radio.js";
 const easeIO = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 const VAN_W = 0.24;          // van width in road half-widths
-const JUMP_G = 13;           // gravity for jumps (m/s^2): a little stronger than real, so jumps stay arcade-snappy
+const JUMP_G = 21;           // gravity for jumps (m/s^2): stronger than real, so a ramp gives about a second of air, not a float
 const DT = 1 / 60;
 const RADIO_STATES = new Set(["stageIntro", "drive", "restoring", "results"]);   // where stage music (or the radio) plays
 
@@ -41,12 +41,12 @@ export class Game {
     const prev = i > 0 ? WEATHER[this.cfg.stages[i - 1].weather] : WEATHER.dusk;
     this.envFrom = prev; this.envBlend = 0;
     const P = this.player; P.z = 0; P.x = 0.35; P.speed = 0; P.y = 0; P.vx = 0; this.steerS = 0; this.lastSpeed = 0; this.jumpReset();
-    this.body = { p: 0, pv: 0, r: 0, rv: 0, h: 0, hv: 0 };
+    this.body = { p: 0, pv: 0, r: 0, rv: 0, h: 0, hv: 0 }; this.lastRoadY = this.lastVyRoad = undefined;
     this.camX = P.x * 0.8; this.parallax = 0; this.delivered = false; this.overshot = false; this.autoStop = false;
     // Phones steer by tilt or touch, which is slower than a keyboard, so they get a little more time,
     // and nobody starts a stage with less than a fair floor (a retry after time-up never carries anything over).
     const base = this.stageTime();
-    this.time = Math.max((keepTime ? this.time : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0; this.boostQueued = false;
+    this.time = Math.max((keepTime ? Math.min(this.time, this.cfg.difficulty.carryMax ?? 1e9) : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0; this.boostQueued = false;
     this.crashes = 0; this.stopT = 0; this.messages = []; this.particles = []; this.tornado = null;
     this.restoreP[this.stageCfg.business] = 0;
     // the hidden helicopter escort: earned by running out of time, offered once on the retry
@@ -229,9 +229,9 @@ export class Game {
     const steerRate = C.steer * (0.3 + 0.7 * Math.min(1, speedK * 1.4)) * (0.7 + 0.3 * grip);
     // the wheel turns in and comes back progressively (a key press never snaps it), and the tyres take
     // a moment to bite, a little longer in the wet: the van carries its weight across the road
-    const sr = Math.abs(steer) > Math.abs(this.steerS) && Math.sign(steer) === Math.sign(this.steerS || steer) ? 6 : 9;
+    const sr = Math.abs(steer) > Math.abs(this.steerS) && Math.sign(steer) === Math.sign(this.steerS || steer) ? 14 : 18;   // quick: the wheel answers at once
     this.steerS += clamp(steer - this.steerS, -sr * DT, sr * DT);
-    const latT = this.steerS * steerRate * (P.speed > 50 ? 1 : 0) * (air ? 0.3 : 1), bite = (air ? 1.2 : 8.5) * (0.5 + 0.5 * grip);
+    const latT = this.steerS * steerRate * (P.speed > 50 ? 1 : 0) * (air ? 0.3 : 1), bite = (air ? 1.2 : 16) * (0.55 + 0.45 * grip);
     P.vx += (latT - P.vx) * (1 - Math.exp(-bite * DT));
     P.x += P.vx * DT;
     const assist = this.mobileAssist();
@@ -260,14 +260,19 @@ export class Game {
     const yawT = clamp(steer * 0.6 * Math.min(1, speedK * 2.5) + (1 - grip) * Math.sin(this.clock * 7) * 0.12 * speedK, -1, 1);
     this.yaw = lerp(this.yaw, yawT, 0.14); this.roll = lerp(this.roll, -this.yaw * 0.035 - seg.curve * 0.004 * speedK, 0.1);
     this.hitFx = Math.max(0, this.hitFx - DT * 3); this.shake = Math.max(0, this.shake - DT * 2.5);
-    // weight transfer on springs: the nose squats under power and dives under braking, the body leans
+    // long-travel suspension, the way a desert trophy truck rides: the body sways out of turns on soft,
+    // lightly damped springs, squats under power, dives under braking, goes light over crests and soaks up
+    // bumps; the wheels stay on the road (the controls stay crisp: this is all body motion)
     // out of turns and the suspension soaks up road bumps and landings
     const B = this.body, aLong = (P.speed - this.lastSpeed) / DT / C.maxSpeed; this.lastSpeed = P.speed;
-    const pT = air ? 0 : clamp(aLong * 0.028, -0.05, 0.03), rT = air ? 0 : clamp((this.steerS * 0.75 + seg.curve * 0.1) * speedK * speedK * 0.075, -0.07, 0.07);
-    B.pv += ((pT - B.p) * 95 - B.pv * 10) * DT; B.p += B.pv * DT;
-    B.rv += ((rT - B.r) * 70 - B.rv * 8) * DT; B.r += B.rv * DT;
-    const bumps = air ? 0 : noise1(P.z * 0.0011, 3) * 0.022 * speedK * (off ? 3 : 1);
-    B.hv += ((bumps - B.h) * 160 - B.hv * 12) * DT; B.h += B.hv * DT;
+    const pT = air ? 0 : clamp(aLong * 0.04, -0.07, 0.045), rT = air ? 0 : clamp((this.steerS * 0.8 + seg.curve * 0.1) * speedK * speedK * 0.11, -0.1, 0.1);
+    B.pv += ((pT - B.p) * 45 - B.pv * 5) * DT; B.p += B.pv * DT;               // ~1.1 Hz, settles after a small overshoot
+    B.rv += ((rT - B.r) * 38 - B.rv * 4.5) * DT; B.r += B.rv * DT;             // ~1 Hz sway
+    // heave: road texture, and the road's own rise and fall (light over a crest, compressed in a dip)
+    const vyRoad = (P.y - (this.lastRoadY ?? P.y)) / DT * U2M; this.lastRoadY = P.y;
+    const ayRoad = (vyRoad - (this.lastVyRoad ?? vyRoad)) / DT; this.lastVyRoad = vyRoad;
+    const bumps = air ? 0 : noise1(P.z * 0.0011, 3) * 0.035 * speedK * (off ? 2.5 : 1) + clamp(-ayRoad * 0.004, -0.1, 0.1);
+    B.hv += ((bumps - B.h) * 120 - B.hv * 9) * DT; B.h += B.hv * DT;
     const roadRumble = (off ? 3 : 0.4) * speedK + env.gust * Math.abs(gustA) * 2;
     this.camShakeY = (Math.sin(this.clock * 50) * roadRumble + (Math.random() - 0.5) * this.shake * 14);
     // collisions
@@ -404,7 +409,7 @@ export class Game {
   deliver(precision, overshot) {
     this.stopEscort(); this.delivered = true; this.zoneHint = false; this.tornadoWarned = false; this.hurrWarned = false;
     const st = this.stageCfg, tl = this.time;
-    let stars = tl > st.time * 0.2 ? 3 : tl > st.time * 0.08 ? 2 : 1;   // (timers are tight: a fifth of the time left is a great run)
+    let stars = tl > st.time * 0.1 ? 3 : tl > st.time * 0.03 ? 2 : 1;   // (timers are tight: a tenth of the time left is a great run)
     if (overshot || precision < 0.25) stars = Math.max(1, stars - 1);
     if (this.crashes > 6) stars = Math.max(1, stars - 1);
     this.lastResult = { timeLeft: tl, precision: Math.max(0, precision), overshot, crashes: this.crashes, stars, counted: false };
@@ -457,7 +462,7 @@ export class Game {
     P.lastPart = s.bridge ? s.bridge.part : null;
   }
   land(impact) {
-    const P = this.player, j = P.jump; P.air = false; P.airY = 0; P.vy = 0; P.pitch = 0; this.body.hv -= Math.min(2.2, impact * 0.1); this.body.pv -= impact * 0.012;
+    const P = this.player, j = P.jump; P.air = false; P.airY = 0; P.vy = 0; P.pitch = 0; this.body.hv -= Math.min(3.2, impact * 0.16); this.body.pv -= Math.min(0.5, impact * 0.015);   // the springs take the landing: compress, rebound, settle
     rumble(Math.min(1, 0.3 + impact / 20), 220); this.events.push({ type: "land", impact });
     // too slow to clear the gap (the far leaf caught the van): that is the rough landing
     if (P.assisted) { P.speed *= 0.6; this.shake = 1.1; this.hitFx = 0.6; this.audio.sfxPlay("crash"); this.msg("ROUGH LANDING!", "#FFB4B4", 1.2, 5, 0.36); return; }

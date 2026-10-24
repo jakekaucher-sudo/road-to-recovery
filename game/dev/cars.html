@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Traffic cars</title><style>html,body{margin:0;background:#9fb7cc;overflow:hidden}</style></head><body>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.js","three/addons/":"../vendor/three/addons/"}}</script>
+<script>addEventListener("error",e=>window.__error=String(e.message||e));</script>
+<script type="module">
+// The traffic car models side by side (props3d.js carParts), for checking them by eye.
+import * as THREE from "three";
+import { carParts, CAR_COLORS } from "../src/three/props3d.js";
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.toneMapping = THREE.ACESFilmicToneMapping; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.1, 200);
+scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x5a5040, 1.2)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.6); sun.position.set(-6, 10, 8); sun.castShadow = true; Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20 }); scene.add(sun);
+const pm = new THREE.PMREMGenerator(r), env = new THREE.Scene(); env.background = new THREE.Color(0xa8c0d8); scene.environment = pm.fromScene(env).texture;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: 0x55585e, roughness: 0.9 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+["sedan", "hatch", "pickup", "utility", "boxtruck"].forEach((t, i) => {
+  const p = carParts(t), g = new THREE.Group(); g.position.set((i - 2) * 3.4, 0, 0); g.rotation.y = -Math.PI / 2 + 0.5; scene.add(g);
+  const body = new THREE.Mesh(p.body, new THREE.MeshPhysicalMaterial({ vertexColors: true, color: t === "utility" || t === "boxtruck" ? 0xeef0f3 : CAR_COLORS[(i * 3 + 1) % CAR_COLORS.length], roughness: 0.42, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }));
+  const det = new THREE.Mesh(p.detail, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 }));
+  for (const m of [body, det]) { m.castShadow = true; g.add(m); }
+});
+cam.position.set(0, 4.5, 15); cam.lookAt(0, 0.9, 0); r.render(scene, cam); window.__ready = true;
+</script></body></html>

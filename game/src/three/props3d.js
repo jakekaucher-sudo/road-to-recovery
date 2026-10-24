@@ -179,14 +179,64 @@ export const PROPS = {
 };
 
 // Traffic: body parts are white (tinted per instance), glass/tyres coloured.
-export function carGeometry(type) {
-  const W = "#ffffff", G = "#1b2430", T = "#121316", parts = [];
-  const wheels = (z0, z1, w) => { for (const z of [z0, z1]) for (const x of [-w / 2, w / 2]) parts.push(at(paint(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 10), T), x, 0.34, z, 0, 0, Math.PI / 2)); };
-  if (type === "boxtruck") { parts.push(box(2.3, 2.6, 5.0, W, 0, 0.7, 1.2), box(2.2, 1.6, 2.0, "#e2e5ea", 0, 0.55, -2.4), box(2.0, 0.8, 0.05, G, 0, 1.25, -3.42)); wheels(-2.4, 2.6, 2.2); }
-  else if (type === "pickup" || type === "utility") { parts.push(box(2.0, 0.85, 5.2, W, 0, 0.45, 0), box(1.9, 0.8, 1.9, W, 0, 1.3, -0.6), box(1.8, 0.62, 0.05, G, 0, 1.38, -1.57), box(1.8, 0.62, 0.05, G, 0, 1.38, 0.37)); if (type === "utility") parts.push(box(1.9, 0.6, 2.0, "#e6e8ec", 0, 1.3, 1.5)); wheels(-1.6, 1.6, 1.95); }
-  else { const hatch = type === "hatch"; parts.push(box(1.85, 0.7, hatch ? 4.0 : 4.6, W, 0, 0.42, 0), box(1.7, 0.62, hatch ? 2.2 : 2.3, W, 0, 1.1, hatch ? 0.35 : 0.1), box(1.6, 0.5, 0.05, G, 0, 1.15, hatch ? 1.47 : 1.27), box(1.6, 0.5, 0.05, G, 0, 1.15, hatch ? -0.77 : -1.07)); wheels(hatch ? -1.3 : -1.5, hatch ? 1.3 : 1.5, 1.8); }
-  return merge(parts);
+// ---------- traffic cars: a contoured body with real wheel arches (extruded side profile), a glass cabin
+// and roof, tyres with silver rims, lamps, grille, bumpers and mirrors. carParts() splits the paint
+// (white, so each car's instance colour tints it) from the details that keep their own colours.
+// Forward is -z, the ground is y = 0; lengths match CAR_DIM.
+const BODY = {
+  sedan:    { L: 4.6, W: 1.85, wb: 1.45, wr: 0.33, hood: 0.84, belt: 0.96, roof: 1.43, cab: [1.1, 0.35, -0.8, -1.55], tail: 0.92 },
+  hatch:    { L: 4.0, W: 1.8, wb: 1.28, wr: 0.32, hood: 0.82, belt: 0.96, roof: 1.47, cab: [0.95, 0.25, -1.3, -1.85], tail: 0.98 },
+  pickup:   { L: 5.2, W: 2.0, wb: 1.62, wr: 0.39, hood: 1.08, belt: 1.12, roof: 1.84, cab: [1.0, 0.55, -0.45, -0.58], tail: 1.16, bed: true },
+  utility:  { L: 5.2, W: 2.0, wb: 1.62, wr: 0.39, hood: 1.08, belt: 1.12, roof: 1.84, cab: [1.0, 0.55, -0.45, -0.58], tail: 1.16, bed: true, box: true },
+  boxtruck: { L: 6.4, W: 2.3, wb: 2.25, wr: 0.45, hood: 1.25, belt: 1.35, roof: 2.35, cab: [2.25, 1.85, 1.35, 1.3], tail: 3.2, cargo: true },
+};
+// a side profile (u forward, y up) extruded across the width, with rounded edges
+function profile(pts, w, bevel = 0.06) {
+  const sh = new THREE.Shape(pts.map(([u, y]) => new THREE.Vector2(u, y)));
+  const g = new THREE.ExtrudeGeometry(sh, { depth: w - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 6 });
+  g.translate(0, 0, -(w - bevel * 2) / 2); g.rotateY(Math.PI / 2);          // u forward -> -z, width along x
+  return g;
 }
+export function carParts(type) {
+  const B = BODY[type] || BODY.sedan, h = B.L / 2, ar = B.wr + 0.07, body = [], det = [];
+  const PAINT = "#ffffff", GLASS = "#16202b", TYRE = "#121315", RIM = "#b9bdc4", TRIM = "#1d1f22", HEAD = "#f4f1e4", TAIL = "#8e1414";
+  // body outline: under the wheel arches, up the nose, over the hood to the cabin, along the beltline, down the tail
+  const pts = [[-h + 0.06, 0.3]];
+  for (const cx of [-B.wb, B.wb]) { for (let k = 0; k <= 8; k++) { const a = Math.PI - k / 8 * Math.PI; pts.push([cx + Math.cos(a) * ar, Math.max(0.3, B.wr + Math.sin(a) * ar)]); } }
+  // a rounded nose: bumper, then the hood curving back from the grille
+  pts.push([h - 0.05, 0.3], [h + 0.02, 0.42], [h + 0.03, 0.56], [h, B.hood - 0.16], [h - 0.08, B.hood - 0.05], [h - 0.25, B.hood - 0.005], [h - 0.45, B.hood]);
+  if (B.cargo) pts.push([B.cab[0], B.belt], [B.cab[3] - 0.05, B.belt], [B.cab[3] - 0.05, 0.85], [-h, 0.85], [-h, 0.55]);
+  else if (B.bed) pts.push([B.cab[0], B.belt], [B.cab[3], B.belt], [B.cab[3] - 0.04, B.tail], [-h + 0.05, B.tail], [-h - 0.02, B.tail - 0.25], [-h, 0.5]);
+  else pts.push([B.cab[0], B.belt], [B.cab[3], B.belt], [-h + 0.4, B.tail + 0.01], [-h + 0.12, B.tail - 0.04], [-h - 0.02, B.tail - 0.2], [-h - 0.03, 0.55], [-h, 0.42]);
+  body.push(paint(profile(pts, B.W, 0.1), PAINT));
+  // glass cabin (slightly narrower) and the roof skin over it
+  const [c0, c1, c2, c3] = B.cab;
+  det.push(paint(profile([[c0, B.belt - 0.01], [c1, B.roof], [c2, B.roof], [c3, B.belt - 0.01]], B.W - 0.16, 0.04), GLASS));
+  body.push(at(paint(new THREE.BoxGeometry(B.W - 0.2, 0.05, Math.abs(c1 - c2) + 0.08), PAINT), 0, B.roof + 0.015, -(c1 + c2) / 2));
+  det.push(box(0.05, B.roof - B.belt - 0.04, 0.12, TRIM, -(B.W / 2 - 0.09), B.belt, -((c1 + c2) / 2 - 0.15)), box(0.05, B.roof - B.belt - 0.04, 0.12, TRIM, B.W / 2 - 0.09, B.belt, -((c1 + c2) / 2 - 0.15)));   // B-pillars
+  // cargo box / utility body
+  if (B.cargo) body.push(box(B.W + 0.04, 2.35, h + c3 - 0.05, PAINT, 0, 0.85, (h - c3 + 0.05) / 2));   // from behind the cab to the tail
+  if (B.bed && !B.box) det.push(box(B.W - 0.32, 0.02, h + B.cab[3] - 0.2, TRIM, 0, B.tail + 0.004, (h - B.cab[3]) / 2 + 0.05));   // the open bed, seen from above
+  if (B.box) body.push(box(B.W - 0.06, 0.62, 1.85, PAINT, 0, B.tail, 1.55), box(B.W - 0.02, 0.05, 1.9, PAINT, 0, B.tail + 0.62, 1.55));
+  // wheels: tyre, silver rim, dark hub
+  for (const cx of [-B.wb, B.wb]) for (const sx of [-1, 1]) {
+    det.push(at(paint(new THREE.CylinderGeometry(B.wr, B.wr, 0.24, 16), TYRE), sx * (B.W / 2 - 0.13), B.wr, -cx, 0, 0, Math.PI / 2));
+    det.push(at(paint(new THREE.CylinderGeometry(B.wr * 0.62, B.wr * 0.62, 0.02, 14), RIM), sx * (B.W / 2 - 0.005), B.wr, -cx, 0, 0, Math.PI / 2));
+    det.push(at(paint(new THREE.CylinderGeometry(B.wr * 0.18, B.wr * 0.18, 0.03, 8), TRIM), sx * (B.W / 2 + 0.006), B.wr, -cx, 0, 0, Math.PI / 2));
+  }
+  // lamps, grille, bumpers, plate, mirrors
+  for (const sx of [-1, 1]) {
+    det.push(box(0.36, 0.13, 0.05, HEAD, sx * (B.W / 2 - 0.3), B.hood - 0.26, -(h + 0.0)));
+    det.push(box(0.3, 0.16, 0.05, TAIL, sx * (B.W / 2 - 0.22), (B.cargo ? 0.95 : B.tail - 0.3), h + 0.01));
+    body.push(box(0.08, 0.12, 0.2, PAINT, sx * (B.W / 2 + 0.06), B.belt + 0.06, -(c0 - 0.1)));
+  }
+  det.push(box(B.W * 0.45, Math.max(0.16, B.hood - 0.62), 0.05, TRIM, 0, 0.5, -(h + 0.01)));
+  det.push(box(B.W - 0.1, 0.16, 0.1, TRIM, 0, 0.3, -(h + 0.02)), box(B.W - 0.1, 0.16, 0.1, TRIM, 0, 0.3, h + 0.02));
+  det.push(box(0.5, 0.13, 0.02, "#e8e8e2", 0, 0.5, h + 0.04));
+  return { body: merge(body), detail: merge(det) };
+}
+// the whole car as one geometry (the car carrier's load uses this)
+export function carGeometry(type) { const p = carParts(type); return merge([p.body, p.detail]); }
 export const CAR_COLORS = ["#4a4f5a", "#8a2a30", "#2f5f73", "#b9bdc4", "#e9eaee", "#23272e", "#6f6a52", "#2b3f6a"];
 export const CAR_DIM = { sedan: [1.85, 4.6], hatch: [1.85, 4.0], pickup: [2.0, 5.2], utility: [2.0, 5.2], boxtruck: [2.3, 6.4] };
 

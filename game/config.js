@@ -17,6 +17,7 @@ export const CONFIG = {
     mobileTimeFactor: 1.12,   // phones get 12% more time on every stage
     minStartFactor: 1.3,      // phones never start a stage with less than 1.3x its (phone) base time
     retryFactor: 1.25,        // retrying after time runs out gives 1.25x the stage time
+    carryMax: 10,             // seconds of leftover time that carry into the next stage
     mobileAssist: { default: 0.2, hurricane: 0.55, tornado: 0.35 },   // share of wind and curve drift removed on phones
   },
   // ---- Hidden bonus: an SBA helicopter escort, offered on the retry after time runs out.
@@ -48,16 +49,16 @@ export const CONFIG = {
   },
 
   // ---- Stages: weather, length (segments), time added, hazards, traffic -----
-  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.2x what
-  // the autopilot takes (it collects some pickups and crashes now and then), so a clean run banks a
-  // little time for the next stage and a messy one runs out.
+  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.08x what
+  // the autopilot takes (it collects some pickups and crashes now and then). At most `carryMax` seconds
+  // left over carry into the next stage, so every stage stands on its own.
   // `weather` names a preset in src/weather.js.
   stages: [
-    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 82, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
-    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 100, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
+    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 70, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
+    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 88, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
     { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 88, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
-    { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 96, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
-    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 114, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
+    { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 92, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
+    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 112, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
   ],
 
   // ---- The five stops: two businesses, a homeowner, renters, a nonprofit ---
@@ -159,7 +160,7 @@ export const CONFIG = {
   van: {
     rear: "../assets/mrv-van/generated/mrv-van-04-rear-B.png",
     driverSide: "../assets/mrv-van/adobe/reference-vector.svg",
-    passengerSide: "../assets/mrv-van/v3/mrv-van-02-passenger-side.svg",
+    passengerSide: "../assets/mrv-van/v3/mrv-van-02-passenger-side.png",   // rebuilt by assets/mrv-van/adobe/build_passenger_raster.mjs
     hero: "../assets/mrv-van/illustrator/mrv-van-05-three-quarter.png",
     front: "../assets/mrv-van/illustrator/mrv-van-03-front.png",
   },
