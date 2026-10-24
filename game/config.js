@@ -54,7 +54,7 @@ export const CONFIG = {
   // left over carry into the next stage, so every stage stands on its own.
   // `weather` names a preset in src/weather.js.
   stages: [
-    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 76, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
+    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 80, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
     { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 92, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
     { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 90, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
     { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 98, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },

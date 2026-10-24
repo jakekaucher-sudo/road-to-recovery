@@ -23,7 +23,7 @@ def main():
             ws.call("Emulation.setTouchEmulationEnabled", {"enabled": True, "maxTouchPoints": 5})
         ws.call("Emulation.setDeviceMetricsOverride", metrics)
         logs = []
-        ws.call("Page.navigate", {"url": f"http://127.0.0.1:{port}/game/index.html?mute=1&{query}"})
+        ws.call("Page.navigate", {"url": f"http://127.0.0.1:{port}/{os.environ.get('RTR_PAGE', 'game/index.html')}?mute=1&{query}"})   # RTR_PAGE=docs/index.html tests the published copy
         t0 = time.time()
         while True:
             st = json.loads(evaluate(ws, "JSON.stringify({r: !!window.__ready, e: window.__error || null})") or "{}")
