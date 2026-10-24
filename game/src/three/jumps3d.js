@@ -101,20 +101,6 @@ export function buildJumps(track, cl, look, q) {
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); sign.position.set(sp.x, sp.y + 3.2, sp.z); sign.rotation.y = -worldAt(cl, (j.i0 - 60) * SEG, 0).h; group.add(sign);
       group.add(beam(new THREE.Vector3(sp.x, sp.y, sp.z), new THREE.Vector3(sp.x, sp.y + 2.2, sp.z), 0.12, 0.12, dark));
     }
-    if (j.kind === "crest") {
-      // the washed-out edge: broken concrete face under the lip, a striped lip, barriers and warning lights
-      const top = at(cl, j.gap0 - 1, 0), base = j.deckY * U2M, H = top.y - base;
-      const face = beam(at(cl, j.gap0 - 0.6, 0, -H / 2), at(cl, j.gap0 - 0.4, 0, -H / 2), HALFW * 2 + 2, H, concrete); group.add(face);
-      group.add(beam(at(cl, j.gap0 - 1.2, -1.02, -0.3), at(cl, j.gap0 - 1.2, 1.02, -0.3), 0.7, 0.6, yellow));
-      for (let k = 0; k < 7; k++) { const x = -0.9 + k * 0.3, r = at(cl, j.gap0 + 0.8 + (k % 2) * 1.5, x, -H + 0.25); const slab = new THREE.Mesh(new THREE.BoxGeometry(1.6 + (k % 3) * 0.6, 0.35, 1.2), concrete); slab.position.copy(r); slab.rotation.set(0.3 * (k % 2 ? 1 : -1), k * 0.9, 0.2); group.add(slab); }
-      for (const sx of [-1, 1]) {
-        const p = at(cl, j.gap0 - 2, sx * (1 + 1.0 / HALFW)), pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.6, 8), dark); pole.position.copy(p).add(new THREE.Vector3(0, 1.3, 0)); group.add(pole);
-        flasher(p.clone().add(new THREE.Vector3(0, 2.7, 0)), 0xff2a20, sx > 0 ? 0.5 : 0, 2.2);
-      }
-      const sp = at(cl, j.up0 - 50, 1 + 1.6 / HALFW), tex = textTexture([{ text: "ROAD WASHED OUT", size: 70, color: "#151515" }, { text: "SPEED UP TO JUMP", size: 70, color: "#151515" }], { bg: "#F2C230", border: "#151515", w: 512, h: 320 });
-      const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); sign.position.set(sp.x, sp.y + 3.2, sp.z); sign.rotation.y = -worldAt(cl, (j.up0 - 50) * SEG, 0).h; group.add(sign);
-      group.add(beam(new THREE.Vector3(sp.x, sp.y, sp.z), new THREE.Vector3(sp.x, sp.y + 2.2, sp.z), 0.12, 0.12, dark));
-    }
     if (j.kind === "carrier") {
       // built in its own frame: forward is -z, the rear of the ramp at z = 0, standing on the road
       const truck = new THREE.Group(), p0 = at(cl, j.i0, j.lane), rampL = j.ramp * SEG * U2M, deckL = j.deck * SEG * U2M, cabL = j.cab * SEG * U2M, W = 2.6;

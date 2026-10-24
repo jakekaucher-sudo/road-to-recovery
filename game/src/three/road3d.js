@@ -37,9 +37,6 @@ export function buildRoad(track, cl, look, quality) {
   const segs = track.segs, bridge = (track.jumps || []).find(j => j.kind === "drawbridge");
   const riverK = (i) => !bridge ? 0 : Math.max(0, Math.min(1, Math.min(i - (bridge.span0 - 8), (bridge.span1 + 8) - i) / 8));
   const bedY = (i) => bridge.deckY * 0.0037 - 7.2 - cl.py[i];      // relative to the road at row i
-  // levee crests: the road and its shoulders climb an earth berm, the fields beyond stay level
-  const crests = (track.jumps || []).filter(j => j.kind === "crest");
-  const bump = (i) => { for (const j of crests) if (i >= j.up0 - 1 && i < j.gap0) return Math.max(0, cl.py[i] - j.deckY * 0.0037); return 0; };
   const inGap = (i) => segs[i] && segs[i].bridge && segs[i].bridge.part === "gap" && segs[i + 1] && segs[i + 1].bridge && segs[i + 1].bridge.part === "gap";
   for (let c0 = 0; c0 < N; c0 += CHUNK) {
     const c1 = Math.min(N, c0 + CHUNK), rows = c1 - c0 + 1;
@@ -67,7 +64,6 @@ export function buildRoad(track, cl, look, quality) {
           let col = k <= 1 ? sh.clone() : gA.clone().lerp(gB, vnoise(distAt[i] * 0.03 + side * 11, d * 0.05));
           if (coast && side > 0 && k >= 2) { const fall = (d - HALFW - 3) * 0.12; y = Math.max(seaY - cl.py[i] - 2.5, -0.3 - fall); col = sand.clone().lerp(gB, 0.1); }
           if (flood && k >= 3) { y = Math.min(y, -0.85 + vnoise(distAt[i] * 0.02, d * 0.03 + side) * 0.5); col = mud.clone().lerp(gA, 0.3); }
-          const bk = k >= 2 ? bump(i) : 0; if (bk > 0) { y -= bk * Math.min(1, (k - 1) / 3); col = col.lerp(mud, 0.25); }
           const rk = riverK(i); if (rk > 0) { y = y + (bedY(i) - y) * rk; col = col.lerp(mud, rk * 0.7); }   // river banks and bed
           const p = P(i, side * d, y); gp.push(p[0], p[1], p[2]); gc.push(col.r, col.g, col.b); gu.push(p[0] / 7, p[2] / 7);
         }

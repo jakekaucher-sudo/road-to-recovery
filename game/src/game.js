@@ -244,7 +244,7 @@ export class Game {
     else wind = gustA * 0.15;
     this.windNow = wind * (controls ? 1 : 0) * (1 - assist) * (1 - calm) * (air ? 0 : 1);
     P.x += this.windNow * DT * Math.min(1, speedK * 1.5 + 0.2);
-    P.x = clamp(P.x, -2.4, 2.4);
+    if (Math.abs(P.x) > 1.9) { P.x = Math.sign(P.x) * 1.9; P.vx = 0; }   // the verge ends where the fields start: the van can't wander off into them
     // advance
     const dz = P.speed * DT; P.z += dz;
     const pseg = findSeg(tr, P.z + CAM.playerZ), nseg = tr.segs[Math.min(tr.N - 1, pseg.i + 1)], pct = ((P.z + CAM.playerZ) % SEG) / SEG;
@@ -378,7 +378,7 @@ export class Game {
       }
       for (const j of tr.jumps) {
         // the bridge is up: traffic pulls onto the shoulder and waits at the gate
-        if ((j.kind === "drawbridge" || j.kind === "crest") && !car.parked && car.z > (j.up0 - 40) * SEG && car.z < j.span1 * SEG) { car.parked = true; car.parkK = 0; car.speed0 = car.speed; car.parkSide = car.lane0 >= 0 ? 1 : -1; }
+        if (j.kind === "drawbridge" && !car.parked && car.z > (j.up0 - 40) * SEG && car.z < j.span1 * SEG) { car.parked = true; car.parkK = 0; car.speed0 = car.speed; car.parkSide = car.lane0 >= 0 ? 1 : -1; }
         // a car in the carrier's lane changes lanes well before reaching it
         if ((j.kind === "carrier" || j.kind === "kicker") && Math.abs(car.lane0 - j.lane) < 0.3 && car.z > (j.i0 - 120) * SEG && car.z < (j.end + 4) * SEG) car.laneGoal = j.lane > 0.3 || j.lane < -0.3 ? 0 : 0.62;
       }
@@ -448,9 +448,9 @@ export class Game {
         this.carrierHit = this.clock + 1; this.crash(this.cfg.physics.crashSlow, dx > 0 ? 0.2 : -0.2); this.msg("LINE UP WITH THE RAMP!", "#CD2127", 1.2, 4, 0.36);
       }
     }
-    // the drawbridge and levee crests: leaving the top of the climb launches the van
-    if (s.bridge && (s.bridge.part === "gap" || s.bridge.part === "drop") && P.lastPart === "up") {
-      const j = J.filter(q => q.kind === "drawbridge" || q.kind === "crest").sort((a, b) => Math.abs(a.gap0 * SEG - vz) - Math.abs(b.gap0 * SEG - vz))[0];
+    // the drawbridge: leaving the near leaf launches the van over the gap
+    if (s.bridge && s.bridge.part === "gap" && P.lastPart === "up") {
+      const j = J.find(q => q.kind === "drawbridge");
       this.launch((j.deckY + j.H) * U2M, v * Math.sin(j.angle) * 1.05, j);
       P.airY = P.hAbs - roadY;                                             // already up at the lip on this frame (no one-frame drop to the deck)
     }
