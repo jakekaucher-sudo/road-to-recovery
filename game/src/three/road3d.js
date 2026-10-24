@@ -106,7 +106,7 @@ export function buildRoad(track, cl, look, quality) {
   let water = null;
   if (wp.length) {
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(wp, 3)); g.setIndex(wIdx); g.computeVertexNormals();
-    const mat = quality.high ? new THREE.MeshStandardMaterial({ color: "#3d5a66", roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
+    const mat = quality.high ? new THREE.MeshStandardMaterial({ color: "#34505b", roughness: 0.2, metalness: 0, envMapIntensity: 0.7, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
                              : new THREE.MeshPhongMaterial({ color: "#3d5a66", shininess: 90, specular: "#9fb7c2", transparent: true, opacity: 0.82, side: THREE.DoubleSide });
     water = new THREE.Mesh(g, mat); group.add(water);
   }

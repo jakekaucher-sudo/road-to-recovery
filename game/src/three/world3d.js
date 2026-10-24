@@ -16,7 +16,7 @@ import { makeRain, makeParticles, makeFlyingDebris, makeLightning, makeTornado, 
 import { textTexture, glowTexture, blobTexture } from "./textures.js";
 import { drawStorefront } from "../buildings.js";
 import { CAM } from "../render.js";
-import { loadDetail, roadMaterial, groundMaterial, RoadMirror, foliageAtlas, propSurface } from "./realism.js";
+import { loadDetail, roadMaterial, groundMaterial, foliageAtlas, propSurface } from "./realism.js";
 import { INPUT } from "../input.js";
 
 const tmpC = new THREE.Color(), tmpC2 = new THREE.Color();
@@ -48,9 +48,9 @@ export class World3D {
     if (quality.shadows) { this.sun.castShadow = true; const sc = this.sun.shadow; const S = quality.high ? 42 : 14; sc.mapSize.set(quality.high ? 4096 : quality.shadowMap || 1024, quality.high ? 4096 : quality.shadowMap || 1024); sc.camera.left = -S; sc.camera.right = S; sc.camera.top = S; sc.camera.bottom = -S; sc.camera.near = 1; sc.camera.far = 160; sc.bias = -0.0008; sc.normalBias = 0.03; }
     this.uni = { uTime: { value: 0 }, uWind: { value: 0 } };
     this.sway = swayMaterial(this.uni, quality.high); this.solid = quality.high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
-    // desktops: photo detail on road and verges, and the wet-road mirror
+    // desktops: photo detail on road and verges, leafy crowns, surface detail on the props
     if (quality.high) {
-      this.mirror = new RoadMirror(); loadDetail(engine.renderer);
+      loadDetail(engine.renderer);
       // leafy crowns: drawn leaves cut out of the atlas, both sides of each card lit
       Object.assign(this.sway, { map: foliageAtlas(), alphaTest: 0.42, side: THREE.DoubleSide });
       propSurface(this.solid);
@@ -86,7 +86,7 @@ export class World3D {
     const group = new THREE.Group(); this.scene.add(group);
     const road = buildRoad(track, cl, look, this.q); group.add(road.group);
     const st = this.stage = { track, cl, look, prevLook, group, road, inst: {}, hz: [], pk: null, cars: {}, biz: null, scen: [] };
-    if (this.q.high) loadDetail(this.e.renderer).then(D => { if (!D || this.stage !== st) return; st.roadU = roadMaterial(road.roadMat, D, this.mirror); groundMaterial(road.groundMat, D); road.roadMat.needsUpdate = road.groundMat.needsUpdate = true;
+    if (this.q.high) loadDetail(this.e.renderer).then(D => { if (!D || this.stage !== st) return; st.roadU = roadMaterial(road.roadMat, D); groundMaterial(road.groundMat, D); road.roadMat.needsUpdate = road.groundMat.needsUpdate = true;
       this.e.warm(this.scene, this.cam); this.e.settle(2500); });   // compile the new shaders now, and don't count that stall against the GPU
     // ---- scenery instancing
     const byKind = {};
@@ -156,7 +156,7 @@ export class World3D {
     for (const kind in hzKinds) {
       const list = hzKinds[kind];
       if (kind === "puddle" || kind === "sand") {
-        const im = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2), kind === "sand" ? new THREE.MeshLambertMaterial({ color: 0xbfa978 }) : (this.q.high ? new THREE.MeshStandardMaterial({ color: 0x40525c, roughness: 0.05, metalness: 0.2 }) : new THREE.MeshPhongMaterial({ color: 0x40525c, shininess: 90 })), list.length);
+        const im = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2), kind === "sand" ? new THREE.MeshLambertMaterial({ color: 0xbfa978 }) : (this.q.high ? new THREE.MeshStandardMaterial({ color: 0x2e3a40, roughness: 0.25, metalness: 0, envMapIntensity: 0.6 }) : new THREE.MeshPhongMaterial({ color: 0x40525c, shininess: 90 })), list.length);
         list.forEach((hz, n) => { const p = worldAt(cl, hz.seg * SEG, hz.offset); this.m4.compose(this.v3.set(p.x, p.y + 0.03, p.z), this.q4.setFromEuler(this.eul.set(0, -p.h, 0)), this.v3.clone().set(2.4, 1, 1.6)); im.setMatrixAt(n, this.m4); });
         group.add(im); continue;
       }
@@ -404,13 +404,8 @@ export class World3D {
     }
     game.events.length = 0;
     pr.update(dt);
-    // wet road: how wet, rain rings, and the mirror (skipped once the engine has had to drop resolution)
-    if (st.roadU) {
-      const U = st.roadU; U.uWet.value = Math.max(L.wet, game.inWater ? 1 : 0); U.uRain.value = L.rain * calm; U.uTime.value = t;
-      const on = this.mirror && this.e.level <= 3 && !document.hidden && (L.wet > 0.05);
-      if (on) { this.mirror.setSize(this.e.w * this.e.pr, this.e.h * this.e.pr); this.cam.updateMatrixWorld(); const hide = st.road.roadMeshes.concat([st.road.zone], st.road.water ? [st.road.water] : []);
-        U.uReflOn.value = this.mirror.render(this.e.renderer, this.scene, this.cam, this.v3.set(pos.x, pos.y, pos.z).clone(), hide) ? 1 : 0; } else U.uReflOn.value = 0;
-    }
+    // wet road: how wet, and rain rings in the puddles
+    if (st.roadU) { const U = st.roadU; U.uWet.value = Math.max(L.wet, game.inWater ? 1 : 0); U.uRain.value = L.rain * calm; U.uTime.value = t; }
   }
 
   // The escort: swoops in from high behind the camera, over the van, to a lead position ahead,
@@ -462,9 +457,11 @@ export class World3D {
     const air = this.airI || 0;
     const back = 8.2 + speedK * 0.9 + (game.boostT > 0 ? 0.8 : 0) + Math.min(3, air * 0.35), up = 5.1 - speedK * 0.2;
     const fx = Math.sin(C.heading), fz = -Math.cos(C.heading);
-    const ty = pos.y + up + air * 0.92;
+    // never below the road under the camera (steep hills, the levee drops): at least 2 m above it
+    const under = worldAt(st.cl, Math.max(0, game.player.z + CAM.playerZ - back / U2M), 0, this.camRoad || (this.camRoad = {})).y;
+    const ty = Math.max(pos.y + up + air * 0.92, under + 2.0);
     if (!C.init) { C.pos.y = ty; C.init = true; }
-    C.pos.x = pos.x - fx * back; C.pos.z = pos.z - fz * back; C.pos.y += (ty - C.pos.y) * Math.min(1, dt * 6);
+    C.pos.x = pos.x - fx * back; C.pos.z = pos.z - fz * back; C.pos.y += (ty - C.pos.y) * Math.min(1, dt * 6); C.pos.y = Math.max(C.pos.y, under + 1.6);   // the easing never lags it into the road
     const sh = game.shake * 0.25 + (Math.abs(P.x) > 1.05 ? 0.06 : 0) * speedK + game.flash * 0.05;
     cam.position.set(C.pos.x + (Math.random() - 0.5) * sh, C.pos.y + (Math.random() - 0.5) * sh, C.pos.z + (Math.random() - 0.5) * sh);
     cam.lookAt(pos.x + fx * 24, pos.y + 0.7 + air * 0.85, pos.z + fz * 24);

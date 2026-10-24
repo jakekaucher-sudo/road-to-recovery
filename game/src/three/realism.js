@@ -1,8 +1,8 @@
-// The high-quality look on desktops: photo detail on the road and verges, wet asphalt that mirrors the
-// world (sky, street lamps, buildings, the van) through puddles and a rain-slick sheen, rain ripples in
-// the puddles, and a film-style colour grade over the finished frame. Phones and slow GPUs keep the
-// plain materials (each piece checks `quality.high`, and the mirror switches off when the engine has
-// had to lower the resolution).
+// The high-quality look on desktops: photo detail on the road and verges, wet asphalt with a rain-slick
+// sheen and puddles that catch the sky, rain ripples in the puddles, and a film-style colour grade over
+// the finished frame. Phones and slow GPUs keep the plain materials (each piece checks `quality.high`).
+// (A planar road mirror was tried: on these hilly, curving roads it painted sky and the underside of the
+// world onto the asphalt wherever the road left its plane, so wet reflections come from the sky only.)
 import * as THREE from "three";
 
 const TEX = new URL("../../art/tex/", import.meta.url).href;
@@ -36,44 +36,33 @@ const DETAIL_NORMAL = (map, scale, k) => /* glsl */`{
 }`;
 
 // The road: lane markings stay in the drawn texture; the photo adds aggregate, cracks and normals in
-// world space; wetness darkens it and drops roughness, puddles become mirrors.
-export function roadMaterial(mat, D, refl) {
+// world space; wetness darkens it and makes it glossier (a soft sheen, never a white glare), puddles
+// are glossier still.
+export function roadMaterial(mat, D) {
   const U = mat.userData.u = {
     uDet: { value: D.asphalt }, uDetN: { value: D.asphaltN }, uDetR: { value: D.asphaltR },
     uWet: { value: 0 }, uRain: { value: 0 }, uTime: { value: 0 },
-    uRefl: { value: refl ? refl.texture : null }, uReflMat: { value: refl ? refl.matrix : new THREE.Matrix4() }, uReflOn: { value: 0 },
   };
-  mat.roughness = 1; mat.metalness = 0;
+  mat.roughness = 1; mat.metalness = 0; mat.envMapIntensity = 0.55;
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U); worldPos(sh);
-    sh.fragmentShader = `varying vec3 vRW; uniform sampler2D uDet, uDetN, uDetR, uRefl; uniform float uWet, uRain, uTime, uReflOn; uniform mat4 uReflMat;\n${NOISE}\n` + sh.fragmentShader
+    sh.fragmentShader = `varying vec3 vRW; uniform sampler2D uDet, uDetN, uDetR; uniform float uWet, uRain, uTime;\n${NOISE}\n` + sh.fragmentShader
       .replace("#include <map_fragment>", `#include <map_fragment>
         vec3 det = texture2D(uDet, vRW.xz * 0.22).rgb;
         diffuseColor.rgb *= mix(vec3(1.0), det / ${ASPHALT_MEAN}, 0.85);
-        float pud = smoothstep(0.58, 0.7, rfbm(vRW.xz * 0.09 + 3.1)) * smoothstep(0.15, 0.6, uWet);   // standing water
+        float pud = smoothstep(0.64, 0.74, rfbm(vRW.xz * 0.09 + 3.1)) * smoothstep(0.15, 0.6, uWet);   // standing water
         float wet = clamp(uWet * 0.85 + pud, 0.0, 1.0);
-        diffuseColor.rgb *= mix(1.0, 0.55, wet);`)
+        diffuseColor.rgb *= mix(1.0, 0.62, wet);`)
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = texture2D(uDetR, vRW.xz * 0.22).r * 0.95;
-        roughnessFactor = mix(roughnessFactor, roughnessFactor * 0.32, wet);
-        roughnessFactor = mix(roughnessFactor, 0.035, pud);`)
+        roughnessFactor = mix(roughnessFactor, max(roughnessFactor * 0.55, 0.34), wet);
+        roughnessFactor = mix(roughnessFactor, 0.14, pud);`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
         ${DETAIL_NORMAL("uDetN", "0.22", "0.55 * (1.0 - pud)")}
         // rain rings in the puddles
         if (uRain > 0.01) { vec2 q = vRW.xz * 2.2; vec2 c = floor(q); float ph = fract(uTime * 0.9 + rh(c) * 7.0);
           float d = length(fract(q) - 0.5 - (vec2(rh(c + 1.3), rh(c + 2.7)) - 0.5) * 0.4), ring = sin((d - ph * 0.45) * 60.0) * smoothstep(0.45, 0.0, abs(d - ph * 0.45) * 6.0) * (1.0 - ph);
-          normal = normalize(normal + (viewMatrix * vec4(ring * 0.25 * uRain * pud, 0.0, ring * 0.25 * uRain * pud, 0.0)).xyz); }`)
-      .replace("#include <opaque_fragment>", `
-        // mirror: the world reflected in the road plane, blurrier where the surface is rougher
-        if (uReflOn > 0.5) {
-          vec4 rc = uReflMat * vec4(vRW, 1.0); vec2 ruv = rc.xy / rc.w + normal.xz * 0.025;
-          float bl = roughnessFactor * 0.012;
-          vec3 rf = (texture2D(uRefl, ruv).rgb * 2.0 + texture2D(uRefl, ruv + vec2(bl, 0.0)).rgb + texture2D(uRefl, ruv - vec2(bl, 0.0)).rgb + texture2D(uRefl, ruv + vec2(0.0, bl * 2.0)).rgb) / 5.0;
-          float ndv = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), F = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
-          float k = clamp(F * (1.0 - roughnessFactor) * 1.15, 0.0, 0.85) * max(wet, 0.2);
-          outgoingLight = mix(outgoingLight, rf, k);
-        }
-        #include <opaque_fragment>`);
+          normal = normalize(normal + (viewMatrix * vec4(ring * 0.25 * uRain * pud, 0.0, ring * 0.25 * uRain * pud, 0.0)).xyz); }`);
   };
   mat.customProgramCacheKey = () => "road-wet";
   return U;
@@ -93,40 +82,6 @@ export function groundMaterial(mat, D) {
         ${DETAIL_NORMAL("uGN", "0.16", "0.7")}`);
   };
   mat.customProgramCacheKey = () => "ground-detail";
-}
-
-// Planar mirror for the road (the method of three.js's Reflector, with an oblique near plane so nothing
-// below the road shows up in it). Rendered at half resolution.
-export class RoadMirror {
-  constructor() {
-    this.rt = new THREE.WebGLRenderTarget(512, 512, { type: THREE.HalfFloatType, samples: 0 });
-    this.texture = this.rt.texture; this.matrix = new THREE.Matrix4();
-    this.cam = new THREE.PerspectiveCamera(); this.cam.matrixAutoUpdate = true;
-    this._p = new THREE.Plane(); this._n = new THREE.Vector3(); this._v = new THREE.Vector3(); this._t = new THREE.Vector3(); this._q = new THREE.Vector4(); this._c = new THREE.Vector4();
-    this._r = new THREE.Matrix4(); this._la = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._cp = new THREE.Vector3();
-  }
-  setSize(w, h) { const W = Math.max(256, Math.round(w / 2)), H = Math.max(144, Math.round(h / 2)); if (this.rt.width !== W || this.rt.height !== H) this.rt.setSize(W, H); }
-  // point: a point on the road under the van; hide: meshes to leave out (the road itself)
-  render(renderer, scene, camera, point, hide) {
-    const n = this._n.set(0, 1, 0), cp = this._cp.setFromMatrixPosition(camera.matrixWorld);
-    const view = this._v.subVectors(point, cp); if (view.dot(n) > 0) return false;      // camera below the road: nothing to see
-    view.reflect(n).negate().add(point);
-    this._r.extractRotation(camera.matrixWorld); this._la.set(0, 0, -1).applyMatrix4(this._r).add(cp);
-    const tgt = this._t.subVectors(point, this._la).reflect(n).negate().add(point);
-    const vc = this.cam; vc.position.copy(view); vc.up.set(0, 1, 0).applyMatrix4(this._r).reflect(n); vc.lookAt(tgt);
-    vc.far = camera.far; vc.updateMatrixWorld(); vc.projectionMatrix.copy(camera.projectionMatrix);
-    this.matrix.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(vc.projectionMatrix).multiply(vc.matrixWorldInverse);
-    // oblique near plane on the road plane
-    this._p.setFromNormalAndCoplanarPoint(n, point).applyMatrix4(vc.matrixWorldInverse);
-    const c = this._c.set(this._p.normal.x, this._p.normal.y, this._p.normal.z, this._p.constant), P = vc.projectionMatrix.elements, q = this._q;
-    q.x = (Math.sign(c.x) + P[8]) / P[0]; q.y = (Math.sign(c.y) + P[9]) / P[5]; q.z = -1; q.w = (1 + P[10]) / P[14];
-    c.multiplyScalar(2 / c.dot(q)); P[2] = c.x; P[6] = c.y; P[10] = c.z + 1 - 0.003; P[14] = c.w;
-    const was = hide.map(m => m.visible); hide.forEach(m => m.visible = false);
-    const rtOld = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
-    renderer.setRenderTarget(this.rt); renderer.clear(); renderer.render(scene, vc); renderer.setRenderTarget(rtOld);
-    renderer.shadowMap.autoUpdate = sm; hide.forEach((m, i) => m.visible = was[i]);
-    return true;
-  }
 }
 
 // Film-style grade on the finished (display) image: gentle S-curve, a touch more colour, cool shadows and
