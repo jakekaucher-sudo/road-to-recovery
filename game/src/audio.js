@@ -123,6 +123,22 @@ export class Audio {
     this._static = [s, o];
   }
   pauseMusic(p) { if (this.mel) { if (p) this.mel.pause(); else if (this.musicUrl) this.mel.play().catch(() => {}); } }
+  // Tyre squeal: looped noise through a narrow band-pass that wobbles a little; k 0..1 is how hard
+  // the tyres are working. Built on first use.
+  skid(k) {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    if (!this.sq) {
+      if (k <= 0.01) return;
+      const s = c.createBufferSource(), f = c.createBiquadFilter(), f2 = c.createBiquadFilter(), g = c.createGain();
+      s.buffer = this.noise; s.loop = true; f.type = "bandpass"; f.Q.value = 9; f.frequency.value = 2100; f2.type = "highpass"; f2.frequency.value = 900;
+      g.gain.value = 0; s.connect(f); f.connect(f2); f2.connect(g); g.connect(this.sfx); s.start();
+      this.sq = { f, g };
+    }
+    const wob = Math.sin(t * 23) * 90 + Math.sin(t * 7.3) * 60;
+    this.sq.f.frequency.setTargetAtTime(1750 + k * 650 + wob, t, 0.03);
+    this.sq.g.gain.setTargetAtTime(Math.min(1, k) * 0.32, t, k > 0.05 ? 0.05 : 0.12);
+  }
   engine(speedK, on, boost) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, f = 38 + speedK * 95 + boost * 30;

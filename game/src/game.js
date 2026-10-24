@@ -6,7 +6,7 @@ import { buildTrack, findSeg, SEG, ROAD_W } from "./track.js";
 import { WEATHER, blendWeather } from "./weather.js";
 import { DEFS, HAZ, carWidth } from "./sprites.js";
 import { CAM } from "./render.js";
-import { INPUT, calibrateGyro, tiltNote, rumble } from "./input.js";
+import { INPUT, calibrateGyro, tiltNote, rumble, rumbleTick } from "./input.js";
 import { getCutscene } from "./cutscenes.js";
 import { U2M } from "./three/space.js";
 import { RESTORE_DUR } from "./screens.js";
@@ -160,6 +160,7 @@ export class Game {
       case "ending": if (I.confirmPressed && T > 4.5) { this.setState("title"); } break;
     }
     // particles
+    if (this.state !== "drive" && this.state !== "stageIntro") { this.skid = 0; this.audio.skid(0); }
     for (const p of this.particles) { p.t += DT; p.x += p.vx * DT; p.y += p.vy * DT; p.vy += (p.g || 0) * DT; }
     this.particles = this.particles.filter(p => p.t < p.life);
   }
@@ -244,7 +245,7 @@ export class Game {
     else wind = gustA * 0.15;
     this.windNow = wind * (controls ? 1 : 0) * (1 - assist) * (1 - calm) * (air ? 0 : 1);
     P.x += this.windNow * DT * Math.min(1, speedK * 1.5 + 0.2);
-    if (Math.abs(P.x) > 1.9) { P.x = Math.sign(P.x) * 1.9; P.vx = 0; }   // the verge ends where the fields start: the van can't wander off into them
+    if (Math.abs(P.x) > 1.45) { P.x = Math.sign(P.x) * 1.45; P.vx = 0; }   // the shoulder ends where the yards start: the van can't wander in among the trees and houses
     // advance
     const dz = P.speed * DT; P.z += dz;
     const pseg = findSeg(tr, P.z + CAM.playerZ), nseg = tr.segs[Math.min(tr.N - 1, pseg.i + 1)], pct = ((P.z + CAM.playerZ) % SEG) / SEG;
@@ -289,6 +290,13 @@ export class Game {
     this.checkDelivery();
     this.updateDerived();
     this.audio.engine(Math.min(1.3, speedK), true, boosting);
+    // tyres: a tight turn at speed (or a brake-and-steer slide) makes them squeal and smoke
+    const slide = brake > 0 && Math.abs(steer) > 0.3 && speedK > 0.35;
+    const skidT = air || P.speed < 1500 ? 0 : clamp((Math.abs(this.steerS) * Math.min(1.2, speedK) - 0.36) / 0.3, 0, 1) * (surfaceWater > 0 ? 0.4 : 1) + (slide ? 0.7 : 0);
+    this.skid = (this.skid || 0) + (Math.min(1, skidT) - (this.skid || 0)) * Math.min(1, DT * 10);
+    this.audio.skid(controls ? this.skid : 0);
+    // controller haptics: road texture with speed, more on the verge, the tyres, nitrous
+    if (controls) rumbleTick((off ? 0.35 * speedK : 0) + this.skid * 0.4 + boosting * 0.25, 0.05 * speedK + (off ? 0.4 * speedK : 0) + this.skid * 0.55 + boosting * 0.35);
   }
 
   collide(seg, nseg, off) {
@@ -308,7 +316,7 @@ export class Game {
         }
       }
       for (const p of s.pickups) {
-        if (!p.got && Math.abs(P.x - p.offset) < (VAN_W + 0.2) / 2) { p.got = true; this.time += p.bonus; this.audio.sfxPlay("pickup"); this.msg("+" + p.bonus + " SEC", "#ECC444", 1.0, 6, 0.36); this.events.push({ type: "pickup" }); }
+        if (!p.got && Math.abs(P.x - p.offset) < (VAN_W + 0.2) / 2) { p.got = true; this.time += p.bonus; this.audio.sfxPlay("pickup"); rumble(0.25, 90); this.msg("+" + p.bonus + " SEC", "#ECC444", 1.0, 6, 0.36); this.events.push({ type: "pickup" }); }
       }
     }
     // traffic
@@ -413,17 +421,17 @@ export class Game {
     if (overshot || precision < 0.25) stars = Math.max(1, stars - 1);
     if (this.crashes > 6) stars = Math.max(1, stars - 1);
     this.lastResult = { timeLeft: tl, precision: Math.max(0, precision), overshot, crashes: this.crashes, stars, counted: false };
-    this.audio.sfxPlay("deliver"); this.restoreSfx = false; this.autoStop = false;
+    this.audio.sfxPlay("deliver"); rumble(0.5, 300); this.restoreSfx = false; this.autoStop = false;
     this.player.speed = 0;
     const cs = getCutscene(this.cfg.cutscenes.arrival[this.stageIndex]);
     if (cs) this.startCutscene(cs, "results");
     else this.setState("restoring");
   }
-  timeUp() { this.stopEscort(); this.audio.sfxPlay("timeup"); this.audio.setMusic(false); this.setState("gameover"); }
+  timeUp() { rumble(0.8, 500); this.stopEscort(); this.audio.sfxPlay("timeup"); this.audio.setMusic(false); this.setState("gameover"); }
 
   // ------------------------------------------------------------- jumps: drawbridge (stage 1), car carrier (stage 2)
   jumpReset() { const P = this.player; Object.assign(P, { air: false, airY: 0, vy: 0, hAbs: 0, onRamp: null, airT: 0, assisted: false, lastPart: null, pitch: 0, jump: null }); this.jumpsDone = new Set(); this.carrierHit = 0; }
-  launch(h, vy, j) { const P = this.player; Object.assign(P, { air: true, hAbs: h, lipY: h, vy, airT: 0, assisted: false, jump: j, onRamp: null }); this.events.push({ type: "launch" }); }
+  launch(h, vy, j) { rumble(0.3, 120); const P = this.player; Object.assign(P, { air: true, hAbs: h, lipY: h, vy, airT: 0, assisted: false, jump: j, onRamp: null }); this.events.push({ type: "launch" }); }
   updateJumps(controls) {
     const P = this.player, tr = this.track, J = tr.jumps; if (!J || !J.length) return;
     const vz = P.z + CAM.playerZ, v = P.speed * U2M, roadY = P.y * U2M, s = findSeg(tr, vz);
@@ -496,9 +504,10 @@ export class Game {
   escortFront() { const E = this.escort; return E.active && E.t > 0.6 ? this.player.z + CAM.playerZ + this.cfg.escort.reach / U2M * sat((E.t - 0.6) / 1.4) : -1; }
   escortSound(what) {
     const A = this.audio, S = this.cfg.escort.sfx, E = this.escort; if (!A.ctx) return;
-    if (what === "start") { A.sample(S.radio, { gain: 0.9 }); A.sample(S.pass, { gain: 1.0, delay: 0.15 }); }
+    if (what === "start") { A.sample(S.radio, { gain: 0.9 }); A.sample(S.pass, { gain: 1.0, delay: 0.15 }); if (S.voiceIn) A.voice(S.voiceIn, 0.45); }
     else if (what === "loop" || (what === "resume" && E.active && E.loopOn)) { E.loopOn = true; A.sample(S.loop, { loop: true, gain: 0.55, fadeIn: what === "loop" ? 1.2 : 0.3 }).then(h => { if (E.active && !this.paused) E.loop = h; else if (h) h.stop(0.2); }); }
-    else if ((what === "end" || what === "pause" || what === "stop") && E.loop) { E.loop.stop(what === "end" ? 3 : 0.2); E.loop = null; }
+    if (what === "end") { A.sample(S.radio, { gain: 0.9 }); if (S.voiceOut) A.voice(S.voiceOut, 0.45); }   // Sam signs off as he climbs away
+    if ((what === "end" || what === "pause" || what === "stop") && E.loop) { E.loop.stop(what === "end" ? 3 : 0.2); E.loop = null; }
   }
   stopEscort() { const E = this.escort; if (!E) return; this.escortSound("stop"); E.active = false; E.ready = false; E.out = -1; E.k = 0; E.loopOn = false; }
 

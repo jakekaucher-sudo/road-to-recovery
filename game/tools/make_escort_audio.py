@@ -5,6 +5,8 @@ audio/source/sfx/ (see audio/README.md). macOS only (afconvert).
   heli-loop.m4a    rotor loop, written three times over so the game can loop the middle copy
                    (AAC adds a little silence at the start; looping the middle avoids a gap)
   radio-click.m4a  aircraft radio mic click, for when Sam comes on
+  sam-in.m4a       Sam on the radio as he arrives, sam-out.m4a as he peels away (Artlist text-to-speech,
+                   walkie-talkie effect; trimmed of the silence around the words)
 Usage: python3 game/tools/make_escort_audio.py"""
 import array, math, os, subprocess, tempfile, wave
 
@@ -48,3 +50,12 @@ write(fade(load(os.path.join(SRC, "blackhawk-pass.wav"), start, 5.5), 0.5, 1.2),
 loop = load(os.path.join(SRC, "heli-flyby-loop.wav")); write(loop + loop + loop, "heli-loop.m4a", 0.8)
 # 3. the radio click
 write(fade(load(os.path.join(SRC, "radio-mic-click.wav")), 0, 0.05), "radio-click.m4a", 0.7)
+
+# 4. Sam's two radio calls, the silence trimmed off both ends
+def trim(a, floor=600):
+    n = len(a) // 2; step = SR // 100
+    loud = [max(abs(x) for x in a[i * 2:(i + step) * 2]) > floor for i in range(0, n - step, step)]
+    if not any(loud): return a
+    i0 = max(0, loud.index(True) - 2) * step; i1 = min(n, (len(loud) - loud[::-1].index(True) + 3) * step)
+    return a[i0 * 2:i1 * 2]
+for name in ("sam-in", "sam-out"): write(fade(trim(load(os.path.join(SRC, name + ".mp3"))), 0.01, 0.08), name + ".m4a", 0.9)

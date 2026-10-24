@@ -174,9 +174,11 @@ function drawEscort(ctx, g, W, H, cfg, s) {
     pixelText(ctx, Math.ceil(left) + " S", bx + bw, by, Math.max(1, Math.round(2 * s)), WHITE, { align: "right" });
     ctx.fillStyle = "rgba(236,196,68,0.2)"; ctx.fillRect(bx, by + 21 * s, bw, 5 * s); ctx.fillStyle = GOLD; ctx.fillRect(bx, by + 21 * s, bw * left / D, 5 * s);
   }
-  // Sam on the radio (top right, away from where the helicopter flies)
-  if (!E.active || t > 5.4) return;
-  const w = 560 * s, h = 150 * s, kin = easeBack(t / 0.42), kout = clamp((t - 4.95) / 0.4, 0, 1);
+  // Sam on the radio (top right, away from where the helicopter flies): his call as he arrives,
+  // his sign-off as he peels away
+  const leaving = !E.active, ct = leaving ? E.out : t, show = leaving ? 3.8 : 5.4, line = leaving ? C.pilot.lineOut || "" : C.pilot.line;
+  if (ct > show || !line) return;
+  const w = 560 * s, h = 150 * s, kin = easeBack(ct / 0.42), kout = clamp((ct - (show - 0.45)) / 0.4, 0, 1);
   const x = W - 12 * s - w + (1 - kin) * (w + 40 * s) + kout * kout * (w + 40 * s), y = 152 * s;   // under the distance bar
   plate(ctx, x, y, w, h, 12 * s, "rgba(7,26,63,0.95)", GOLD, 3);
   const ps = h - 24 * s, px = x + 12 * s, py = y + 12 * s;
@@ -192,8 +194,8 @@ function drawEscort(ctx, g, W, H, cfg, s) {
   neonText(ctx, C.pilot.name, tx, y + 16 * s, Math.max(1, Math.round(3.4 * s)), GOLD);
   pixelText(ctx, C.pilot.role, tx + nameW + 14 * s, y + 24 * s, Math.max(1, Math.round(1.8 * s)), NEON);
   // the line types out, as if it is coming over the radio
-  const fs = Math.round(22 * s), maxW = x + w - 18 * s - tx, lines = wrapLines(ctx, C.pilot.line, fs, maxW, { weight: 700 });
-  let chars = Math.floor(clamp((t - 0.35) / 1.5, 0, 1) * C.pilot.line.length);
+  const fs = Math.round(22 * s), maxW = x + w - 18 * s - tx, lines = wrapLines(ctx, line, fs, maxW, { weight: 700 });
+  let chars = Math.floor(clamp((ct - 0.35) / 1.5, 0, 1) * line.length);
   lines.forEach((l, i) => { if (chars <= 0) return; const part = l.slice(0, chars); chars -= l.length + 1; text(ctx, part, tx, y + 72 * s + i * fs * 1.28, fs, WHITE, { weight: 700, shadow: "rgba(0,0,0,0.5)" }); });
 }
 

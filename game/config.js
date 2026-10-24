@@ -27,8 +27,8 @@ export const CONFIG = {
     duration: 12,             // seconds of escort
     ahead: 20, altitude: 10,  // where it flies (metres ahead of / above the van), framed below the HUD
     reach: 150,               // metres ahead that the downwash clears
-    pilot: { name: "SAM", role: "SBA AIR ESCORT", portrait: "art/sam/sam.png", line: "Looks like you need some help, partner. Follow me!" },
-    sfx: { pass: "audio/sfx/heli-pass.m4a", loop: "audio/sfx/heli-loop.m4a", radio: "audio/sfx/radio-click.m4a" },
+    pilot: { name: "SAM", role: "SBA AIR ESCORT", portrait: "art/sam/sam.png", line: "Looks like you need some help, partner. Follow me!", lineOut: "Yeee haw, good buddy, you got it from here!" },
+    sfx: { pass: "audio/sfx/heli-pass.m4a", loop: "audio/sfx/heli-loop.m4a", radio: "audio/sfx/radio-click.m4a", voiceIn: "audio/sfx/sam-in.m4a", voiceOut: "audio/sfx/sam-out.m4a" },   // Sam's voice: Artlist text-to-speech
   },
   physics: {
     maxSpeed: 12000,          // top speed without boost (shown as topMph)
@@ -49,16 +49,16 @@ export const CONFIG = {
   },
 
   // ---- Stages: weather, length (segments), time added, hazards, traffic -----
-  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.08x what
-  // the autopilot takes (it collects some pickups and crashes now and then). At most `carryMax` seconds
+  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.12-1.15x what
+  // the autopilot takes on average (it collects some pickups and crashes now and then). At most `carryMax` seconds
   // left over carry into the next stage, so every stage stands on its own.
   // `weather` names a preset in src/weather.js.
   stages: [
-    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 70, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
-    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 88, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
-    { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 88, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
-    { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 92, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
-    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 112, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
+    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 76, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
+    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 92, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
+    { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 90, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
+    { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 98, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
+    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 116, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
   ],
 
   // ---- The five stops: two businesses, a homeowner, renters, a nonprofit ---

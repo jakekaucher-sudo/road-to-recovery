@@ -396,6 +396,18 @@ export class World3D {
         pr.emit(bx, pos.y + 0.3, bz, right.x * side * (1 + Math.random() * 2) - fwd.x * 3, 1.5 + Math.random() * (game.inWater ? 4 : 2), right.z * side * (1 + Math.random() * 2) - fwd.z * 3, 0.5 + Math.random() * 0.4, col.map(c => c * 0.45), game.inWater ? 0.4 : 0.18, 9.8, 1.5);
       }
     }
+    // tyre smoke off the rear wheels in a tight turn or a slide (a fine mist on a wet road)
+    const sk = game.skid || 0;
+    if (sk > 0.12 && speedMs > 5 && !airI0) {
+      const n = Math.round(sk * (this.q.high ? 4 : 2) + Math.random() * 0.6), mist = wet || game.inWater;
+      for (let i = 0; i < n; i++) {
+        // puffs leave the tyre moving with the van, then drag slows them and they fall back and rise
+        const side = Math.random() < 0.5 ? -1 : 1, bx = pos.x + right.x * side * 1.15 - fwd.x * 1.9, bz = pos.z + right.z * side * 1.15 - fwd.z * 1.9;
+        const c = mist ? 0.46 : 0.42 + Math.random() * 0.12, carry = speedMs * (0.92 + Math.random() * 0.08), out = side * (0.8 + Math.random() * 1.6);
+        pr.emit(bx, pos.y + 0.3, bz, fwd.x * carry + right.x * out, 0.3 + Math.random() * 0.7, fwd.z * carry + right.z * out,
+          0.7 + Math.random() * 0.4, [c, c, c * 1.04], 1.8 + sk * 1.0, -0.5, 1.2);
+      }
+    }
     // nitrous sparks streaming out of the exhausts
     if (this.nos > 0.05) for (let i = 0; i < (this.q.high ? 3 : 1); i++) { const sx = Math.random() < 0.5 ? -1 : 1, bx = pos.x - fwd.x * 3.1 + right.x * sx * 0.55, bz = pos.z - fwd.z * 3.1 + right.z * sx * 0.55;
       pr.emit(bx, pos.y + airI0 + 0.45, bz, -fwd.x * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, Math.random() * 0.8, -fwd.z * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, 0.22 + Math.random() * 0.2, [0.35, 0.6, 1.0], 0.35, 0, 0.5); }

@@ -212,9 +212,20 @@ function pollPad() {
   P.prev = gp.buttons.map(b => b && (b.pressed || b.value > 0.5));
 }
 // Short rumble on a crash, where the controller supports it.
+let pulseUntil = 0, lastTick = 0;
 export function rumble(strength = 0.6, ms = 180) {
+  pulseUntil = performance.now() + ms;
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   for (const gp of pads) { const a = gp && gp.vibrationActuator; if (a && a.playEffect) a.playEffect("dual-rumble", { duration: ms, strongMagnitude: strength, weakMagnitude: strength * 0.6 }).catch(() => {}); }
 }
 
+// Steady haptics while driving (road texture, verge, tyres squealing, nitrous): a short effect renewed
+// about ten times a second; skipped while a one-off pulse (a crash, a landing) is still playing.
+export function rumbleTick(strong, weak) {
+  if (!INPUT.pad.connected) return;
+  const now = performance.now(); if (now < pulseUntil || now - lastTick < 90) return; lastTick = now;
+  if (strong < 0.02 && weak < 0.02) return;
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const gp of pads) { const a = gp && gp.vibrationActuator; if (a && a.playEffect) a.playEffect("dual-rumble", { duration: 130, strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, weak) }).catch(() => {}); }
+}
 export function clearEdges() { INPUT.boostPressed = INPUT.pausePressed = INPUT.confirmPressed = INPUT.mutePressed = INPUT.escortPressed = false; INPUT.radioStep = 0; }
