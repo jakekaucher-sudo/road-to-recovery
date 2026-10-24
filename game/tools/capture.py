@@ -121,7 +121,8 @@ def free_port():
 
 
 def launch_chrome(port, profile, w, h):
-    args = [CHROME, "--headless=new", "--enable-unsafe-swiftshader", "--use-angle=swiftshader", f"--remote-debugging-port={port}", f"--user-data-dir={profile}",
+    gpu = ["--use-angle=metal", "--ignore-gpu-blocklist"] if os.environ.get("RTR_GPU") else ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"]   # RTR_GPU=1: the Mac's real GPU
+    args = [CHROME, "--headless=new", *gpu, f"--remote-debugging-port={port}", f"--user-data-dir={profile}",
             f"--window-size={w},{h}", "--hide-scrollbars", "--no-first-run",
             "--no-default-browser-check", "--disable-extensions", "--mute-audio", "--force-device-scale-factor=1",
             "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-dev-shm-usage",

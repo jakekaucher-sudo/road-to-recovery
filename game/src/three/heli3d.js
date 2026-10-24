@@ -318,7 +318,9 @@ export function mergeStatic(group, skip = () => false) {
     done.push(o);
   });
   for (const o of done) { o.parent.remove(o); o.geometry.dispose(); }
-  for (const [m, geos] of buckets) { const g = mergeGeometries(geos, false); geos.forEach(x => x.dispose()); if (g) { const mesh = new THREE.Mesh(g, m); mesh.castShadow = true; group.add(mesh); } else console.warn("helicopter: could not merge", m.type); }
+  for (const [m, geos0] of buckets) { const mixed = geos0.some(g => g.index) && geos0.some(g => !g.index), geos = mixed ? geos0.map(g => g.index ? g.toNonIndexed() : g) : geos0;
+    for (const g of geos) { if (!g.attributes.uv) g.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); }
+    const g = mergeGeometries(geos, false); if (mixed) geos0.forEach(x => x.dispose()); geos.forEach(x => x.dispose()); if (g) { const mesh = new THREE.Mesh(g, m); mesh.castShadow = true; group.add(mesh); } else console.warn("helicopter: could not merge", m.type); }
 }
 
 export async function buildHeli(quality = {}) {

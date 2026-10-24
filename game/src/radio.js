@@ -14,16 +14,28 @@ export class Radio {
     this.i = 0; this.t = 99; this.shown = 99; this.fresh = false;
     try { const j = this.stations.findIndex(s => s.id === localStorage.getItem("rtr.radio")); if (j >= 0) this.i = j; } catch (e) { }
     this.offset = this.stations.map(() => Math.random() * 3600);      // every station is somewhere in its loop when the game starts
+    this.dropT = 8; this.dropN = Math.floor(Math.random() * 6); this.dj = null;   // a station's DJ drops (Olivia on Pulse)
   }
   get station() { return this.stations[this.i]; }
   step(dir) {
     if (!this.enabled) return;
     const n = this.stations.length; this.i = (this.i + dir + n) % n; this.t = 0; this.shown = 0; this.fresh = true; this.byTap = true;
+    if (this.dj) { this.dj.stop(); this.dj = null; } this.dropT = 7;   // tuning away cuts the DJ off; tuning in hears her soon
     this.audio.radioStatic();
     try { localStorage.setItem("rtr.radio", this.station.id); } catch (e) { }
   }
   show() { if (this.enabled) { this.shown = 0; this.byTap = false; } }   // the card pops up when a drive starts
-  update(dt) { this.t += dt; this.shown += dt; }
+  update(dt, playing) {
+    this.t += dt; this.shown += dt;
+    // a DJ cuts in over the song every minute or so, while the van is on the road
+    const drops = this.enabled && this.station.drops;
+    if (!drops || !playing || this.t < SETTLE + 1) return;
+    if (this.dj && this.audio.ctx && this.audio.ctx.currentTime > this.dj.end) this.dj = null;
+    if (this.dj || (this.dropT -= dt) > 0) return;
+    this.dropT = 55 + Math.random() * 25; const url = drops[this.dropN++ % drops.length];
+    this.audio.voice(url).then(h => { if (h && this.station.drops === drops) this.dj = h; else if (h) h.stop(); });
+  }
+  silence() { if (this.dj) { this.dj.stop(); this.dj = null; } }
   // What should play over the stage songs: { url, seek } (seek: where to start, given the file's
   // length), or null while the dial is still moving. `stageUrl` is the stage's own song.
   pick(stageUrl) {

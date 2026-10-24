@@ -39,8 +39,9 @@ export function buildTrack(stage, index, cfg) {
   };
   const L = stage.length;
   const approach = 260;                       // straight run-in to the business
-  // ---- jumps: a drawbridge across a river (stage 1) and a parked car carrier with its ramp down (stage 2)
-  const jumps = [], jumpAt = { 0: "drawbridge", 1: "carrier" }[index];
+  // ---- jumps, three a stage: a raised drawbridge over a river, a parked car carrier with its ramp down,
+  // steel kicker ramps in one lane, and washed-out levee crests across the whole road
+  const jumps = [], plan = (JUMPS[index] || []).slice();
   const insertJump = (kind) => {
     const y0 = lastY();
     if (kind === "drawbridge") {
@@ -52,6 +53,22 @@ export function buildTrack(stage, index, cfg) {
       j.gap1 = segs.length; for (let k = 0; k < leaf; k++) { add(0, y0 + H * (1 - k / leaf)); segs[segs.length - 1].bridge = { part: "down", k }; }
       j.down1 = segs.length; for (let k = 0; k < 70; k++) add(0, y0);
       j.span0 = j.up0 - 6; j.span1 = j.down1 + 6; j.angle = Math.atan2(4.2, leaf * SEG / M);
+      jumps.push(j);
+    } else if (kind === "crest") {
+      // the road climbs a levee and the far side has washed out: a sheer drop back to the old road level
+      const run = 70, leaf = 30, H = 3.2 * M, j = { kind, deckY: y0, H, leaf };
+      for (let k = 0; k < run; k++) add(0, y0);
+      j.up0 = segs.length; for (let k = 1; k <= leaf; k++) { add(0, y0 + H * Math.pow(k / leaf, 1.25)); segs[segs.length - 1].bridge = { part: "up", k }; }
+      j.gap0 = segs.length; for (let k = 0; k < 70; k++) { add(0, y0); if (k < 4) segs[segs.length - 1].bridge = { part: "drop", k }; }
+      j.down1 = j.gap0 + 4; j.span0 = j.up0 - 6; j.span1 = j.gap0 + 40; j.angle = Math.atan2(3.2 * 1.25, leaf * SEG / M);
+      jumps.push(j);
+    } else if (kind === "kicker") {
+      // a steel ramp in one lane: line up with it and the van leaves the top at speed
+      const run = 50, lane = [-0.62, 0, 0.62][Math.floor(R() * 3)], j = { kind, lane, H: 1.8, kick: 0, ramp: 11, deck: 0, cab: 0 };
+      for (let k = 0; k < run; k++) add(0, y0);
+      j.i0 = segs.length; j.lip = j.i0 + j.ramp; j.end = j.lip + 4;   // (a little past the lip, so the launch check still sees the van)
+      for (let k = 0; k < j.ramp + 90; k++) add(0, y0);
+      j.span0 = j.i0 - 40; j.span1 = j.end + 60;
       jumps.push(j);
     } else {
       // car carrier parked in the right lane: rear ramp, empty upper deck, a kick at the front over the cab
@@ -65,7 +82,7 @@ export function buildTrack(stage, index, cfg) {
   };
   addRoad(10, 40, 10, 0, 0);                 // start straight
   while (segs.length < L - approach - 60) {
-    if (jumpAt && !jumps.length && segs.length > L * 0.42) { insertJump(jumpAt); continue; }
+    if (plan.length && segs.length > L * plan[0][1]) { insertJump(plan.shift()[0]); continue; }
     const r = R();
     const len = 25 + Math.floor(R() * 45);
     const dir = R() < 0.5 ? -1 : 1;
@@ -131,8 +148,9 @@ export function buildTrack(stage, index, cfg) {
     segs[i].hazards.push(hz);
   }
   // ---- time pickups ---------------------------------------------------------
-  for (let k = 0; k < 6; k++) {
-    let i = 150 + Math.floor((k + 0.5) / 6 * (zoneStart - 300));
+  const nPick = Math.round(N / 480);
+  for (let k = 0; k < nPick; k++) {
+    let i = 150 + Math.floor((k + 0.5) / nPick * (zoneStart - 300));
     while (nearJump(i, 20)) i += 10;
     segs[i].pickups.push({ kind: "time", offset: [-0.6, 0, 0.6][Math.floor(R() * 3)], got: false, bonus: 3 });
   }
@@ -148,4 +166,12 @@ export function buildTrack(stage, index, cfg) {
   return { segs, N, cars, finish, length: N * SEG, theme, stage, index, jumps };
 }
 
+// Where each stage's jumps go (fraction of the stage length).
+const JUMPS = [
+  [["kicker", 0.2], ["drawbridge", 0.44], ["kicker", 0.7]],
+  [["crest", 0.22], ["carrier", 0.46], ["kicker", 0.72]],
+  [["crest", 0.2], ["kicker", 0.45], ["crest", 0.7]],
+  [["kicker", 0.2], ["crest", 0.45], ["carrier", 0.7]],
+  [["crest", 0.2], ["drawbridge", 0.46], ["kicker", 0.72]],
+];
 export function findSeg(track, z) { return track.segs[clamp(Math.floor(z / SEG), 0, track.N - 1)]; }

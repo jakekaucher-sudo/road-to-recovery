@@ -21,7 +21,8 @@ export function buildRoad(track, cl, look, quality) {
   const lit = quality.high ? THREE.MeshStandardMaterial : THREE.MeshLambertMaterial;
   const roadMat = new lit({ map: T.asphalt, ...(quality.high ? { roughness: 0.9 - 0.48 * look.wet, metalness: 0.0 } : {}) });
   const curbMat = new THREE.MeshLambertMaterial({ map: T.curb });
-  const groundMat = new THREE.MeshLambertMaterial({ map: T.ground, vertexColors: true });
+  const groundMat = quality.high ? new THREE.MeshStandardMaterial({ map: T.ground, vertexColors: true, roughness: 0.95, metalness: 0 }) : new THREE.MeshLambertMaterial({ map: T.ground, vertexColors: true });
+  const roadMeshes = [];
   const coast = !!look.coast, flood = !!look.flood;
   const gA = new THREE.Color(look.groundA), gB = new THREE.Color(look.groundB), sh = new THREE.Color(look.shoulder), sand = new THREE.Color("#c9b688"), mud = new THREE.Color("#6e6448");
   const N = cl.N - 1;
@@ -36,6 +37,9 @@ export function buildRoad(track, cl, look, quality) {
   const segs = track.segs, bridge = (track.jumps || []).find(j => j.kind === "drawbridge");
   const riverK = (i) => !bridge ? 0 : Math.max(0, Math.min(1, Math.min(i - (bridge.span0 - 8), (bridge.span1 + 8) - i) / 8));
   const bedY = (i) => bridge.deckY * 0.0037 - 7.2 - cl.py[i];      // relative to the road at row i
+  // levee crests: the road and its shoulders climb an earth berm, the fields beyond stay level
+  const crests = (track.jumps || []).filter(j => j.kind === "crest");
+  const bump = (i) => { for (const j of crests) if (i >= j.up0 - 1 && i < j.gap0) return Math.max(0, cl.py[i] - j.deckY * 0.0037); return 0; };
   const inGap = (i) => segs[i] && segs[i].bridge && segs[i].bridge.part === "gap" && segs[i + 1] && segs[i + 1].bridge && segs[i + 1].bridge.part === "gap";
   for (let c0 = 0; c0 < N; c0 += CHUNK) {
     const c1 = Math.min(N, c0 + CHUNK), rows = c1 - c0 + 1;
@@ -63,6 +67,7 @@ export function buildRoad(track, cl, look, quality) {
           let col = k <= 1 ? sh.clone() : gA.clone().lerp(gB, vnoise(distAt[i] * 0.03 + side * 11, d * 0.05));
           if (coast && side > 0 && k >= 2) { const fall = (d - HALFW - 3) * 0.12; y = Math.max(seaY - cl.py[i] - 2.5, -0.3 - fall); col = sand.clone().lerp(gB, 0.1); }
           if (flood && k >= 3) { y = Math.min(y, -0.85 + vnoise(distAt[i] * 0.02, d * 0.03 + side) * 0.5); col = mud.clone().lerp(gA, 0.3); }
+          const bk = k >= 2 ? bump(i) : 0; if (bk > 0) { y -= bk * Math.min(1, (k - 1) / 3); col = col.lerp(mud, 0.25); }
           const rk = riverK(i); if (rk > 0) { y = y + (bedY(i) - y) * rk; col = col.lerp(mud, rk * 0.7); }   // river banks and bed
           const p = P(i, side * d, y); gp.push(p[0], p[1], p[2]); gc.push(col.r, col.g, col.b); gu.push(p[0] / 7, p[2] / 7);
         }
@@ -75,9 +80,17 @@ export function buildRoad(track, cl, look, quality) {
     const mk = (pos, uv, idx, mat, colors) => {
       const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
       if (colors) g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-      g.setIndex(idx); g.computeVertexNormals(); const m = new THREE.Mesh(g, mat); m.receiveShadow = true; group.add(m); return m;
+      // the strips are built in both lateral directions: turn every triangle to face up, so normals
+      // and front faces agree (the lighting reads them from above)
+      for (let t = 0; t < idx.length; t += 3) {
+        const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
+        const ux = pos[b] - pos[a], uz = pos[b + 2] - pos[a + 2], vx = pos[c] - pos[a], vz = pos[c + 2] - pos[a + 2];
+        if (uz * vx - ux * vz < 0) { const k = idx[t + 1]; idx[t + 1] = idx[t + 2]; idx[t + 2] = k; }
+      }
+      g.setIndex(idx); g.computeVertexNormals();
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; group.add(m); return m;
     };
-    mk(rp, ru, rIdx, roadMat); mk(cp, cu, cIdx, curbMat); mk(gp, gu, gIdx, groundMat, gc);
+    roadMeshes.push(mk(rp, ru, rIdx, roadMat)); mk(cp, cu, cIdx, curbMat); mk(gp, gu, gIdx, groundMat, gc);
   }
   // fix winding of the left strips: we rely on double-sided ground for safety
   groundMat.side = THREE.DoubleSide; roadMat.side = THREE.DoubleSide; curbMat.side = THREE.DoubleSide;
@@ -107,6 +120,6 @@ export function buildRoad(track, cl, look, quality) {
   const zoneTex = T.chevron.clone(); zoneTex.needsUpdate = true;
   const zone = new THREE.Mesh(zg, new THREE.MeshBasicMaterial({ map: zoneTex, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }));
   zone.renderOrder = 2; group.add(zone);
-  return { group, water, zone, zoneTex, seaY, dispose() { group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } };
+  return { group, water, zone, zoneTex, seaY, roadMat, groundMat, roadMeshes, dispose() { group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } };
 }
 function P2(cl, i, off, dy) { const h = cl.hd[i], rx = Math.cos(h), rz = Math.sin(h); return [cl.px[i] + rx * off, cl.py[i] + dy, cl.pz[i] + rz * off]; }

@@ -48,13 +48,16 @@ export const CONFIG = {
   },
 
   // ---- Stages: weather, length (segments), time added, hazards, traffic -----
+  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.2x what
+  // the autopilot takes (it collects some pickups and crashes now and then), so a clean run banks a
+  // little time for the next stage and a messy one runs out.
   // `weather` names a preset in src/weather.js.
   stages: [
-    { name: "AFTERMATH",       weather: "dusk",      length: 2600, time: 75, traffic: 12, hazards: 10, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
-    { name: "HEAVY WEATHER",   weather: "storm",     length: 2900, time: 64, traffic: 14, hazards: 16, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
-    { name: "FLOOD ZONE",      weather: "flood",     length: 3000, time: 66, traffic: 12, hazards: 18, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
-    { name: "TORNADO ALLEY",   weather: "tornado",   length: 3200, time: 68, traffic: 12, hazards: 22, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
-    { name: "HURRICANE COAST", weather: "hurricane", length: 3400, time: 76, traffic: 14, hazards: 24, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
+    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 82, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
+    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 100, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
+    { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 88, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
+    { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 96, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
+    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 114, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
   ],
 
   // ---- The five stops: two businesses, a homeowner, renters, a nonprofit ---
@@ -129,8 +132,9 @@ export const CONFIG = {
   // and each station is built by tools/make_radio_audio.py (see audio/README.md). url null = the stage's own song.
   radio: {
     stations: [
-      { id: "pulse", name: "PULSE", freq: "101.5 FM", genre: "ELECTRONIC", color: "#5CC8FF", url: null },
-      { id: "bigsky", name: "BIG SKY", freq: "98.7 FM", genre: "COUNTRY", color: "#ECC444", url: "audio/radio/country.m4a" },
+      { id: "pulse", name: "PULSE", freq: "101.5 FM", genre: "ELECTRONIC", color: "#5CC8FF", url: null, note: "With DJ Olivia.",
+        drops: ["audio/radio/olivia-1.m4a", "audio/radio/olivia-2.m4a", "audio/radio/olivia-3.m4a", "audio/radio/olivia-4.m4a", "audio/radio/olivia-5.m4a", "audio/radio/olivia-6.m4a"] },   // Olivia talks over the stage songs
+      { id: "bigsky", name: "BIG SKY", freq: "98.7 FM", genre: "COUNTRY", color: "#ECC444", url: "audio/radio/country.m4a", note: "With Alex." },
       { id: "storm", name: "THE STORM", freq: "104.1 FM", genre: "ROCK", color: "#FF5A5F", url: "audio/radio/rock.m4a" },
       { id: "heat", name: "HEAT", freq: "95.3 FM", genre: "HIP HOP", color: "#FF8A3D", url: "audio/radio/hiphop.m4a" },
       { id: "isla", name: "LA ISLA", freq: "92.9 FM", genre: "LATIN", color: "#3DDCB4", url: "audio/radio/latin.m4a", note: "Hosted by GC." },

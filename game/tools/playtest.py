@@ -29,7 +29,10 @@ def main():
             st = json.loads(evaluate(ws, "JSON.stringify({r: !!window.__ready, e: window.__error || null})") or "{}")
             if st.get("e"): print("PAGE ERROR:", st["e"]); break
             if st.get("r"): break
-            if time.time() - t0 > 60: print("timeout waiting for ready"); break
+            if time.time() - t0 > 45:                                   # a file sometimes stalls (a sleepy external drive): reload and try again
+                tries = locals().get("tries", 0) + 1
+                if tries > 3: print("timeout waiting for ready"); break
+                print("reloading, try", tries); ws.call("Page.reload", {"ignoreCache": True}); t0 = time.time()
             time.sleep(0.2)
         for a in actions:
             if "cdp" in a: print("cdp:", a["cdp"], ws.call(a["cdp"], a.get("params", {})))

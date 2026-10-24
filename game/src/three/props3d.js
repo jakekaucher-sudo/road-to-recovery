@@ -13,7 +13,7 @@ const at = (g, x, y, z, rx = 0, ry = 0, rz = 0, s = 1) => { const m = new THREE.
 const box = (w, h, d, col, x = 0, y = 0, z = 0, ry = 0) => at(paint(new THREE.BoxGeometry(w, h, d), col), x, y + h / 2, z, 0, ry);
 const cyl = (r0, r1, h, col, x = 0, y = 0, z = 0, seg = 7, rx = 0, rz = 0) => at(paint(new THREE.CylinderGeometry(r0, r1, h, seg), col), x, y + h / 2, z, rx, 0, rz);
 const blob = (r, col, x, y, z, sy = 1, detail = 0) => { const g = paint(new THREE.IcosahedronGeometry(r, detail), col); g.scale(1, sy, 1); return at(g, x, y, z); };
-const merge = (parts) => mergeGeometries(parts.map(p => p.index ? p.toNonIndexed() : p));
+const merge = (parts) => { parts = parts.map(p => p.index ? p.toNonIndexed() : p); if (parts.some(p => p.attributes.uv)) parts = parts.map(p => p.attributes.uv ? p : uv0(p)); return mergeGeometries(parts); };
 const gable = (w, h, d, col, y) => { const s = new THREE.Shape([new THREE.Vector2(-w / 2 - 0.3, 0), new THREE.Vector2(0, h), new THREE.Vector2(w / 2 + 0.3, 0)]); const g = new THREE.ExtrudeGeometry(s, { depth: d + 0.4, bevelEnabled: false }); g.translate(0, y, -d / 2 - 0.2); return paint(g, col); };
 
 
@@ -101,11 +101,43 @@ const BEACH = [
   { wall: "#b9a8d3", roof: "#efe9de", trim: "#ffffff", door: "#3b2f5a" },
 ];
 
+// ---------- leafy trees (desktops): trunk and branches, and a crown of leaf clusters, each three crossed
+// cards carrying the drawn leaves in the foliage atlas (realism.js). Every vertex of the crown gets a
+// normal pointing out from the crown's centre, so it lights like a soft round mass, not like flat cards.
+// Non-leaf parts sample the atlas's opaque white corner (uv 0.02), so they keep their vertex colours.
+function rnd(seed) { let s = seed >>> 0 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+const uv0 = (g) => { const n = g.attributes.position.count; g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(n * 2).fill(0.02), 2)); return g; };
+function leafTree(o) {
+  const R = rnd(o.seed || 7), parts = [], H = o.h || 3.4, lean = o.lean || 0, cr = o.crown || 2.6, cy = H + cr * 0.75, cx = lean * H;
+  parts.push(uv0(at(paint(new THREE.CylinderGeometry(0.17, 0.3, H + 0.6, 8), o.bark || "#5b4632"), 0, (H + 0.6) / 2, 0, 0, 0, -lean)));
+  for (let b = 0; b < 5; b++) { const a = b / 5 * Math.PI * 2 + R(), L = cr * 0.9, g = paint(new THREE.CylinderGeometry(0.05, 0.11, L, 5), o.bark || "#5b4632");
+    g.translate(0, L / 2, 0); at(g, cx * 0.8, H * 0.85, 0, Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9); parts.push(uv0(g)); }
+  const centre = new THREE.Vector3(cx, cy, 0), n = o.clusters || 16, tmp = new THREE.Vector3();
+  for (let c = 0; c < n; c++) {
+    const u = R() * Math.PI * 2, v = Math.acos(2 * R() - 1), r = Math.cbrt(R()) * 0.85;
+    const p = new THREE.Vector3(Math.sin(v) * Math.cos(u) * cr * r, Math.cos(v) * cr * 0.8 * r, Math.sin(v) * Math.sin(u) * cr * r).add(centre);
+    const s = 1.5 + R() * 1.1, tint = new THREE.Color(o.leaf || "#e9f2d8").offsetHSL((R() - 0.5) * 0.04, 0, (R() - 0.5) * 0.12);
+    for (let k = 0; k < 3; k++) {
+      const q = new THREE.PlaneGeometry(s, s); const quv = q.attributes.uv; for (let i = 0; i < quv.count; i++) quv.setXY(i, 0.275 + quv.getX(i) * 0.715, 0.015 + quv.getY(i) * 0.97);
+      q.rotateY(k * Math.PI / 3 + R()); q.rotateX((R() - 0.5) * 0.9); q.translate(p.x, p.y, p.z);
+      const g = paint(q, "#ffffff"); g.setAttribute("uv", q.toNonIndexed().attributes.uv);
+      const pos = g.attributes.position, nrm = g.attributes.normal, col = g.attributes.color;
+      for (let i = 0; i < pos.count; i++) { tmp.set(pos.getX(i), pos.getY(i), pos.getZ(i)).sub(centre); tmp.y += cr * 0.35; tmp.normalize(); nrm.setXYZ(i, tmp.x, tmp.y, tmp.z);
+        const shade = 0.72 + 0.28 * Math.max(0, (pos.getY(i) - (cy - cr)) / (cr * 2)); col.setXYZ(i, tint.r * shade, tint.g * shade, tint.b * shade); }
+      parts.push(g);
+    }
+  }
+  return merge(parts);
+}
+
 export const PROPS = {
-  tree: () => merge([cyl(0.18, 0.28, 3.2, "#5b4330"), blob(2.0, "#4f7a3a", 0, 4.4, 0, 1.1), blob(1.5, "#5f8c44", 0.8, 5.4, 0.3), blob(1.3, "#466e33", -0.7, 5.1, -0.4)]),
-  treeBent: () => merge([cyl(0.18, 0.28, 3.0, "#5b4330", 0, 0, 0, 7, 0, -0.25), blob(1.9, "#4a7236", 0.9, 4.0, 0, 1.0), blob(1.3, "#57803f", 1.7, 4.6, 0.2)]),
+  tree: () => DETAIL ? [leafTree({ seed: 3 }), leafTree({ seed: 11, h: 4.2, crown: 3.1, leaf: "#dfeccb" }), leafTree({ seed: 23, h: 3.0, crown: 2.3, leaf: "#f1f0cf" })]
+    : merge([cyl(0.18, 0.28, 3.2, "#5b4330"), blob(2.0, "#4f7a3a", 0, 4.4, 0, 1.1), blob(1.5, "#5f8c44", 0.8, 5.4, 0.3), blob(1.3, "#466e33", -0.7, 5.1, -0.4)]),
+  treeBent: () => DETAIL ? [leafTree({ seed: 5, lean: 0.25, crown: 2.3 }), leafTree({ seed: 9, lean: 0.32, crown: 2.0, leaf: "#e2ebc8" })]
+    : merge([cyl(0.18, 0.28, 3.0, "#5b4330", 0, 0, 0, 7, 0, -0.25), blob(1.9, "#4a7236", 0.9, 4.0, 0, 1.0), blob(1.3, "#57803f", 1.7, 4.6, 0.2)]),
   treeBroken: () => merge([cyl(0.22, 0.3, 1.8, "#5b4330"), cyl(0.16, 0.22, 3.4, "#5b4330", 1.6, 0.25, 0, 7, 0, -1.35), blob(1.6, "#4c6a34", 3.4, 0.9, 0.2, 0.6)]),
-  treeSunk: () => merge([cyl(0.18, 0.28, 3.2, "#4a3a2c"), blob(1.9, "#45663a", 0, 4.2, 0, 1.05), blob(1.3, "#4f7240", 0.7, 5.1, 0.2)]),
+  treeSunk: () => DETAIL ? [leafTree({ seed: 13, bark: "#4a3a2c", leaf: "#d6dfc0" }), leafTree({ seed: 17, h: 3.6, crown: 2.8, bark: "#4a3a2c", leaf: "#cfd9b9" })]
+    : merge([cyl(0.18, 0.28, 3.2, "#4a3a2c"), blob(1.9, "#45663a", 0, 4.2, 0, 1.05), blob(1.3, "#4f7240", 0.7, 5.1, 0.2)]),
   palm: () => { const parts = []; let x = 0, y = 0; for (let i = 0; i < 6; i++) { parts.push(cyl(0.2 - i * 0.015, 0.24 - i * 0.015, 1.25, i % 2 ? "#8c6b45" : "#7a5c3a", x, y, 0, 6, 0, -0.06 * i)); x += Math.sin(0.06 * i) * 1.25; y += 1.22; }
     for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; const f = paint(new THREE.ConeGeometry(0.35, 3.0, 3), k % 2 ? "#3f7a3a" : "#4f8c42"); f.scale(1, 1, 0.25); at(f, x + Math.cos(a) * 1.2, y - 0.25, Math.sin(a) * 1.2, Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1); parts.push(f); }
     parts.push(blob(0.45, "#6b5a32", x, y, 0)); return merge(parts); },

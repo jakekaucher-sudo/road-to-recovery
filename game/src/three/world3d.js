@@ -16,6 +16,7 @@ import { makeRain, makeParticles, makeFlyingDebris, makeLightning, makeTornado, 
 import { textTexture, glowTexture, blobTexture } from "./textures.js";
 import { drawStorefront } from "../buildings.js";
 import { CAM } from "../render.js";
+import { loadDetail, roadMaterial, groundMaterial, RoadMirror, foliageAtlas, propSurface } from "./realism.js";
 import { INPUT } from "../input.js";
 
 const tmpC = new THREE.Color(), tmpC2 = new THREE.Color();
@@ -23,8 +24,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 function lookBlend(a, b, t) { const o = {}; for (const k in b) { const va = a[k], vb = b[k]; if (typeof vb === "string" && vb[0] === "#") o[k] = tmpC.set(va ?? vb).lerp(tmpC2.set(vb), t).getHexString().replace(/^/, "#"); else if (typeof vb === "number") o[k] = lerp(va ?? vb, vb, t); else o[k] = t < 0.5 ? va : vb; } return o; }
 
 // Wind sway for vegetation (vertex shader, scaled by height).
-function swayMaterial(uni) {
-  const m = new THREE.MeshLambertMaterial({ vertexColors: true });
+function swayMaterial(uni, high) {
+  const m = high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uni.uTime; sh.uniforms.uWind = uni.uWind;
     sh.vertexShader = "uniform float uTime; uniform float uWind;\n" + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -44,9 +45,16 @@ export class World3D {
     s.fog = new THREE.Fog(0xcccccc, 60, 600);
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1); s.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffffff, 2); s.add(this.sun); s.add(this.sun.target);
-    if (quality.shadows) { this.sun.castShadow = true; const sc = this.sun.shadow; sc.mapSize.set(quality.shadowMap || 1024, quality.shadowMap || 1024); sc.camera.left = -14; sc.camera.right = 14; sc.camera.top = 14; sc.camera.bottom = -14; sc.camera.near = 1; sc.camera.far = 80; sc.bias = -0.0008; sc.normalBias = 0.03; }
+    if (quality.shadows) { this.sun.castShadow = true; const sc = this.sun.shadow; const S = quality.high ? 42 : 14; sc.mapSize.set(quality.high ? 4096 : quality.shadowMap || 1024, quality.high ? 4096 : quality.shadowMap || 1024); sc.camera.left = -S; sc.camera.right = S; sc.camera.top = S; sc.camera.bottom = -S; sc.camera.near = 1; sc.camera.far = 160; sc.bias = -0.0008; sc.normalBias = 0.03; }
     this.uni = { uTime: { value: 0 }, uWind: { value: 0 } };
-    this.sway = swayMaterial(this.uni); this.solid = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.sway = swayMaterial(this.uni, quality.high); this.solid = quality.high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
+    // desktops: photo detail on road and verges, and the wet-road mirror
+    if (quality.high) {
+      this.mirror = new RoadMirror(); loadDetail(engine.renderer);
+      // leafy crowns: drawn leaves cut out of the atlas, both sides of each card lit
+      Object.assign(this.sway, { map: foliageAtlas(), alphaTest: 0.42, side: THREE.DoubleSide });
+      propSurface(this.solid);
+    }
     this.van = buildVan(art, quality); s.add(this.van.root);
     if (quality.high) { this.headSpot = new THREE.SpotLight(0xfff0d0, 0, 60, 0.5, 0.6, 1.2); this.van.root.add(this.headSpot); this.headSpot.position.set(0, 1.0, -2.8); this.headSpot.target.position.set(0, 0, -25); this.van.root.add(this.headSpot.target); }
     this.rain = makeRain(quality.rain); s.add(this.rain.mesh);
@@ -78,6 +86,8 @@ export class World3D {
     const group = new THREE.Group(); this.scene.add(group);
     const road = buildRoad(track, cl, look, this.q); group.add(road.group);
     const st = this.stage = { track, cl, look, prevLook, group, road, inst: {}, hz: [], pk: null, cars: {}, biz: null, scen: [] };
+    if (this.q.high) loadDetail(this.e.renderer).then(D => { if (!D || this.stage !== st) return; st.roadU = roadMaterial(road.roadMat, D, this.mirror); groundMaterial(road.groundMat, D); road.roadMat.needsUpdate = road.groundMat.needsUpdate = true;
+      this.e.warm(this.scene, this.cam); this.e.settle(2500); });   // compile the new shaders now, and don't count that stall against the GPU
     // ---- scenery instancing
     const byKind = {};
     for (const s of track.segs) for (const sp of s.sprites) { if (["business", "gate", "stopSign", "billboard"].includes(sp.kind)) continue; (byKind[sp.kind] = byKind[sp.kind] || []).push({ i: s.i, sp }); }
@@ -99,7 +109,7 @@ export class World3D {
           this.m4.compose(this.v3.set(p.x, p.y - (kind === "treeSunk" || kind === "houseFlooded" ? 0.8 : 0.05), p.z), this.q4.setFromEuler(this.eul.set(0, yaw, 0)), this.v3.clone().set(sc, sc, sc));
           im.setMatrixAt(n, this.m4);
         });
-        im.castShadow = false; im.receiveShadow = false; im.frustumCulled = false; group.add(im); st.inst[kind + v] = im;
+        im.castShadow = !!this.q.high && !/flood|sandbag|dune|fence/i.test(kind); im.receiveShadow = !!this.q.high; im.frustumCulled = false;   /* trees, houses and poles throw real shadows on desktops */ group.add(im); st.inst[kind + v] = im;
         // instances are in track order: keep a copy so only the stretch near the van is drawn
         st.scen.push({ im, segs: Int32Array.from(list, e => e.i), full: im.instanceMatrix.array.slice(), a: -1, b: -1 });
       });
@@ -169,7 +179,7 @@ export class World3D {
     // ---- traffic
     const types = {}; track.cars.forEach(c => (types[c.type] = types[c.type] || []).push(c));
     for (const type in types) {
-      const list = types[type], im = new THREE.InstancedMesh(carGeometry(type), new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
+      const list = types[type], im = new THREE.InstancedMesh(carGeometry(type), this.q.high ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }) : new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = this.q.shadows; im.frustumCulled = false;
       list.forEach((c, n) => im.setColorAt(n, tmpC.set(type === "utility" || type === "boxtruck" ? "#eef0f3" : CAR_COLORS[c.color % CAR_COLORS.length])));
       const tl = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.16, 0.05), new THREE.MeshBasicMaterial({ color: 0xff2a24 }), list.length * 2); tl.instanceMatrix.setUsage(THREE.DynamicDrawUsage); tl.frustumCulled = false;
@@ -250,7 +260,7 @@ export class World3D {
     this.scene.fog.color.set(L.fog); this.scene.fog.near = L.fogNear; this.scene.fog.far = Math.min(L.fogFar, this.q.far);
     this.hemi.color.set(L.hemiSky); this.hemi.groundColor.set(L.hemiGround); this.hemi.intensity = L.hemiIntensity;
     this.sun.color.set(L.sunColor); this.sun.intensity = L.sunIntensity;
-    this.e.renderer.toneMappingExposure = L.exposure;
+    this.e.renderer.toneMappingExposure = L.exposure; if (this.e.grade) this.e.grade.uniforms.uWarm.value = L.sunAmt;
     this.curLook = L;
   }
   updateEnv() {
@@ -299,12 +309,14 @@ export class World3D {
     const night = Math.max(0, Math.min(1, 1.25 - L.sunIntensity * 0.45 - L.hemiIntensity * 0.25 + L.rain * 0.3));
     const nos = game.boostT > 0 ? Math.min(1, game.boostT / 0.25, (this.cfg.physics.boostTime - game.boostT) / 0.12 + 0.3) : 0;
     this.nos = nos;
-    this.van.update({ speed: speedMs, dt, steer: INPUT.steer * (game.state === "drive" ? 1 : 0), brake: (INPUT.brake && game.state === "drive") || game.autoStop ? 1 : 0, night, air: airI, boost: nos, boostPop: Math.max(0, 1 - (this.cfg.physics.boostTime - game.boostT) / 0.3),
-      roll: -this.yawVis * 0.12 + game.roll * 0.5, pitch: -pitchAt(cl, vz) * 0.0 + (game.hitFx * 0.03), bounce: Math.sin((t - (1 - ra) / 60) * 19) * 0.012 * Math.min(1, speedMs / 20) + (Math.abs(P.x) > 1.05 ? Math.sin(t * 31) * 0.03 : 0) });
+    const Bd = game.body || { p: 0, r: 0, h: 0 };
+    this.van.update({ speed: speedMs, dt, steer: (game.steerS || 0) * (game.state === "drive" ? 1 : 0), brake: (INPUT.brake && game.state === "drive") || game.autoStop ? 1 : 0, night, air: airI, boost: nos, boostPop: Math.max(0, 1 - (this.cfg.physics.boostTime - game.boostT) / 0.3),
+      roll: Bd.r + game.roll * 0.3, pitch: Bd.p + game.hitFx * 0.03, bounce: Bd.h + (Math.abs(P.x) > 1.05 ? Math.sin(t * 31) * 0.02 : 0) });
     V.rotation.x = pitchAt(cl, vz) + (P.pitch || 0);
     if (this.headSpot) this.headSpot.intensity = night * 40;
     // ---- shadows follow the van
-    if (this.q.shadows) { const sd = this.sky.uniforms.sunDir.value; this.sun.position.set(pos.x + sd.x * 40, pos.y + Math.max(0.3, sd.y) * 40, pos.z + sd.z * 40); this.sun.target.position.set(pos.x, pos.y, pos.z); }
+    if (this.q.shadows) { const sd = this.sky.uniforms.sunDir.value, ah = this.q.high ? 18 : 0, cx = pos.x + Math.sin(pos.h) * ah, cz = pos.z - Math.cos(pos.h) * ah;   // the shadow box sits ahead of the van, where the eye is
+      this.sun.position.set(cx + sd.x * 80, pos.y + Math.max(0.3, sd.y) * 80, cz + sd.z * 80); this.sun.target.position.set(cx, pos.y, cz); }
     // ---- traffic
     for (const type in st.cars) {
       const C = st.cars[type]; let n = 0;
@@ -392,6 +404,13 @@ export class World3D {
     }
     game.events.length = 0;
     pr.update(dt);
+    // wet road: how wet, rain rings, and the mirror (skipped once the engine has had to drop resolution)
+    if (st.roadU) {
+      const U = st.roadU; U.uWet.value = Math.max(L.wet, game.inWater ? 1 : 0); U.uRain.value = L.rain * calm; U.uTime.value = t;
+      const on = this.mirror && this.e.level <= 3 && !document.hidden && (L.wet > 0.05);
+      if (on) { this.mirror.setSize(this.e.w * this.e.pr, this.e.h * this.e.pr); this.cam.updateMatrixWorld(); const hide = st.road.roadMeshes.concat([st.road.zone], st.road.water ? [st.road.water] : []);
+        U.uReflOn.value = this.mirror.render(this.e.renderer, this.scene, this.cam, this.v3.set(pos.x, pos.y, pos.z).clone(), hide) ? 1 : 0; } else U.uReflOn.value = 0;
+    }
   }
 
   // The escort: swoops in from high behind the camera, over the van, to a lead position ahead,

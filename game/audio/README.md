@@ -35,16 +35,17 @@ Built by `tools/make_radio_audio.py` from instrumental Artlist tracks (downloade
 
 | File | Station | Tracks, in order |
 |---|---|---|
-| `radio/country.m4a` | Big Sky 98.7 | "Banjo Backbeat" (instrumental) by Ofer Koren; "Heartland and Home" by Will Van De Crommert |
+| `radio/country.m4a` | Big Sky 98.7 | Alex's four breaks, one before each song: "Banjo Backbeat" (instrumental) by Ofer Koren; "Outlaw Love" (instrumental version) by Brooks Herring; "Heartland and Home" by Will Van De Crommert; "Heartland Rebel" by Steven Beddall |
 | `radio/rock.m4a` | The Storm 104.1 | "Top of the Rock" by Ikoliks; "Spark" by Leva |
 | `radio/hiphop.m4a` | Heat 95.3 | "We Up" (instrumental) by Derek Minor; "My Chic Sunglasses" by Damon Power |
 | `radio/latin.m4a` | La Isla 92.9 | GC's station ident, "Un Pasito Mas" (instrumental) by Matan Gov Ari, GC's break, "2000" by 2KIDZ, GC's break, "Moonlit Fiesta" by Raz Burg |
 | `radio/pop.m4a` | Sunny 99.9 | "Roll with It" (instrumental) by Scooter Diggs; "Summer Dive" by Raz Burg |
+| `radio/olivia-1.m4a` … `olivia-6.m4a` | Pulse 101.5 | DJ Olivia's drops. The game plays one about every minute over the stage song and dips the music under her voice. |
 | `radio/talk.m4a` | Recovery Talk 1590 AM | 14 lines: host Charlotte, callers Dave and a bakery owner, and Marcus from a disaster recovery center |
 
 All the songs came from Artlist searches filtered to instrumental tracks, so none have lyrics.
 
-**Voices.** Charlotte, GC, Marcus and the callers are generated with Artlist text-to-speech (Eleven v3), originals in `source/radio/voice/`. The callers use the phone-call voice effect. The talk show's calls are **dramatized**: the people are fictional, and the station card says so. Every fact they mention is from SBA.gov and checked against `research/2026-10-17-sba-disaster-loans.md` and `research/2026-10-17-sba-office-of-disaster-recovery-and-resilience.md`:
+**Voices.** Charlotte, GC, Marcus, Alex, Olivia and the callers are generated with Artlist text-to-speech (Eleven v3), originals in `source/radio/voice/`. The callers use the phone-call voice effect. The talk show's calls are **dramatized**: the people are fictional, and the station card says so. Every fact they mention is from SBA.gov and checked against `research/2026-10-17-sba-disaster-loans.md` and `research/2026-10-17-sba-office-of-disaster-recovery-and-resilience.md`:
 
 - Disaster loans help homeowners and renters, not only businesses, in declared disaster areas.
 - Home repair loans go up to $500,000; personal property loans up to $100,000, including a car.
@@ -54,4 +55,4 @@ All the songs came from Artlist searches filtered to instrumental tracks, so non
 - Don't wait for an insurance settlement to apply.
 - Terms run up to 30 years with no prepayment penalty; up to 20% of the verified loss can be added for mitigation; SBA won't decline a loan for lack of collateral alone; customer service is 800-659-2955.
 
-The full script is in `scripts/2026-10-23-radio-script.md`. Rebuild the stations with `python3 game/tools/make_radio_audio.py`.
+The full scripts are in `scripts/2026-10-23-radio-script.md` and `scripts/2026-10-24-radio-script-2.md` (Alex, Olivia, and Recovery Talk segment 2, which is written but not yet recorded; the builder adds it to the talk station once its lines exist). Rebuild the stations with `python3 game/tools/make_radio_audio.py`.

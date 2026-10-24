@@ -65,7 +65,8 @@ export function buildVan(art, quality) {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const high = quality.high;
   const Paint = high ? THREE.MeshStandardMaterial : THREE.MeshPhongMaterial;
-  const paint = (map) => high ? new Paint({ map, roughness: 0.32, metalness: 0.15, side: THREE.DoubleSide }) : new Paint({ map, shininess: 70, specular: 0x333333, side: THREE.DoubleSide });
+  // desktops: clear-coated paint that picks up the sky and the street in its reflections
+  const paint = (map) => high ? new THREE.MeshPhysicalMaterial({ map, roughness: 0.38, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE.DoubleSide }) : new Paint({ map, shininess: 70, specular: 0x333333, side: THREE.DoubleSide });
 
   // ---- smooth rounded body: one surface around the silhouette with rounded
   // edges (radius R), a crowned roof and slight tumblehome, plus two side caps.
@@ -143,23 +144,40 @@ export function buildVan(art, quality) {
     const arm = new THREE.Mesh(armGeo, mirMat); arm.rotation.z = Math.PI / 2; arm.position.set(sx * (W / 2 + 0.08), H * 0.58, -L / 2 + L * 0.21); body.add(arm);
   }
 
-  // ---- wheels (real geometry, the art's hub cut out and spun)
+  // ---- wheels: modelled tyre and alloy rim, every part centred on the axle so nothing wobbles as it
+  // spins (the old hub was a picture cut from the art, and its centre was off the axle)
   const wheelObjs = [];
-  const tyreMat = new THREE.MeshLambertMaterial({ color: 0x0c0d10 });
-  const hubTex = (() => {
-    const w0 = wheels[0]; if (!w0) return null;
-    const r = Math.round(w0.r * 0.66), c = document.createElement("canvas"); c.width = c.height = r * 2; const g = c.getContext("2d");
-    g.beginPath(); g.arc(r, r, r, 0, Math.PI * 2); g.clip(); g.drawImage(art.driver.canvas, w0.cx - r, w0.cy - r, r * 2, r * 2, 0, 0, r * 2, r * 2);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-  })();
-  const hubMat = hubTex ? new THREE.MeshLambertMaterial({ map: hubTex }) : new THREE.MeshLambertMaterial({ color: 0xc9cbd0 });
+  const Std = high ? THREE.MeshStandardMaterial : THREE.MeshPhongMaterial;
+  const tyreMat = high ? new Std({ color: 0x141518, roughness: 0.92, metalness: 0 }) : new Std({ color: 0x141518, shininess: 8 });
+  const alloyMat = high ? new Std({ color: 0xc9ccd2, roughness: 0.28, metalness: 0.85 }) : new Std({ color: 0xc9ccd2, shininess: 90, specular: 0x777777 });
+  const darkMat = high ? new Std({ color: 0x2a2c30, roughness: 0.5, metalness: 0.6 }) : new Std({ color: 0x2a2c30, shininess: 30 });
+  const wheelGeo = (r, w) => {
+    const rr = r * 0.64, e = Math.min(0.045, w * 0.18);
+    // tyre: a lathe around the axle with rounded shoulders, turned so the axle runs along x
+    const prof = [[rr, -w / 2], [r - e * 1.4, -w / 2], [r - e * 0.35, -w / 2 + e * 0.35], [r, -w / 2 + e * 1.2], [r, w / 2 - e * 1.2], [r - e * 0.35, w / 2 - e * 0.35], [r - e * 1.4, w / 2], [rr, w / 2]]
+      .map(([x, y]) => new THREE.Vector2(x, y));
+    const tyre = new THREE.LatheGeometry(prof, 32); tyre.rotateZ(Math.PI / 2);
+    // rim: outer lip, recessed dish, six spokes, centre cap and lug nuts (faces outward along +x)
+    const parts = [];
+    const lip = new THREE.TorusGeometry(rr - 0.012, 0.016, 8, 32); lip.rotateY(Math.PI / 2); lip.translate(w / 2 - 0.02, 0, 0); parts.push([lip, alloyMat]);
+    const barrel = new THREE.CylinderGeometry(rr - 0.01, rr - 0.01, w * 0.9, 32, 1, true); barrel.rotateZ(Math.PI / 2); parts.push([barrel, darkMat]);
+    const dish = new THREE.CircleGeometry(rr - 0.02, 32); dish.rotateY(Math.PI / 2); dish.translate(w / 2 - 0.09, 0, 0); parts.push([dish, darkMat]);
+    for (let k = 0; k < 6; k++) {
+      const sp = new THREE.BoxGeometry(0.035, rr * 0.86, rr * 0.2); sp.translate(0, rr * 0.5, 0); sp.rotateX(k / 6 * Math.PI * 2); sp.translate(w / 2 - 0.055, 0, 0); parts.push([sp, alloyMat]);
+    }
+    const hubG = new THREE.CylinderGeometry(rr * 0.3, rr * 0.34, 0.06, 20); hubG.rotateZ(Math.PI / 2); hubG.translate(w / 2 - 0.045, 0, 0); parts.push([hubG, alloyMat]);
+    const cap = new THREE.CircleGeometry(rr * 0.17, 16); cap.rotateY(Math.PI / 2); cap.translate(w / 2 - 0.013, 0, 0); parts.push([cap, darkMat]);
+    for (let k = 0; k < 6; k++) { const a = (k + 0.5) / 6 * Math.PI * 2, n = new THREE.CylinderGeometry(0.012, 0.012, 0.03, 6); n.rotateZ(Math.PI / 2); n.translate(w / 2 - 0.012, Math.cos(a) * rr * 0.24, Math.sin(a) * rr * 0.24); parts.push([n, alloyMat]); }
+    return { tyre, parts };
+  };
   (wheels.length === 2 ? wheels : [{ cx: x0 + (x1 - x0) * 0.2, cy: drv.h * 0.85, r: (x1 - x0) * 0.06 }, { cx: x0 + (x1 - x0) * 0.78, cy: drv.h * 0.85, r: (x1 - x0) * 0.06 }]).forEach((wh, idx) => {
-    const r = wh.r * k * 0.98, s = toS(wh.cx), y = toY(wh.cy);
+    const r = wh.r * k * 0.98, s = toS(wh.cx), y = toY(wh.cy), G = wheelGeo(r, 0.27);
     for (const sx of [-1, 1]) {
-      const pivot = new THREE.Group(); pivot.position.set(sx * (W / 2 - 0.1), y, s - L / 2); body.add(pivot);
+      const pivot = new THREE.Group(); pivot.position.set(sx * (W / 2 - 0.1), y, s - L / 2); root.add(pivot);   // on the chassis: the body leans over them
       const spin = new THREE.Group(); pivot.add(spin);
-      const tyre = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.27, 22), tyreMat); tyre.rotation.z = Math.PI / 2; spin.add(tyre);
-      const hub = new THREE.Mesh(new THREE.CircleGeometry(r * 0.66, 22), hubMat); hub.position.x = sx * 0.14; hub.rotation.y = sx * Math.PI / 2; spin.add(hub);
+      const face = new THREE.Group(); face.scale.x = sx; spin.add(face);               // mirrored so the rim faces out on both sides
+      face.add(new THREE.Mesh(G.tyre, tyreMat));
+      for (const [g, m] of G.parts) face.add(new THREE.Mesh(g, m));
       wheelObjs.push({ pivot, spin, front: idx === 0, r });
     }
   });

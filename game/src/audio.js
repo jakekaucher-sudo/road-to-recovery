@@ -78,7 +78,8 @@ export class Audio {
     this.musicUrl = url; const tok = this._tok = (this._tok || 0) + 1;
     if (!this.mel) {
       this.mel = document.createElement("audio"); this.mel.loop = true; this.mel.preload = "auto"; this.mel.setAttribute("playsinline", "");
-      this.mgain = this.ctx.createGain(); this.mgain.gain.value = 0; this.ctx.createMediaElementSource(this.mel).connect(this.mgain); this.mgain.connect(this.master);
+      this.mgain = this.ctx.createGain(); this.mgain.gain.value = 0; this.ctx.createMediaElementSource(this.mel).connect(this.mgain);
+      this.duck = this.ctx.createGain(); this.mgain.connect(this.duck); this.duck.connect(this.master);   // dips the music under a DJ
     }
     const t = this.ctx.currentTime, g = this.mgain.gain;
     g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + 0.35);
@@ -91,6 +92,20 @@ export class Audio {
       const p = this.mel.play(); if (p && p.catch) p.catch(() => {});
       const t2 = this.ctx.currentTime; g.cancelScheduledValues(t2); g.setValueAtTime(0, t2); g.linearRampToValueAtTime(volume, t2 + 0.8);
     }, url ? 380 : 360);
+  }
+  // A DJ talking over the music: the song dips under the voice and comes back up after.
+  // Resolves to a handle with stop(), or null.
+  async voice(url, dip = 0.32) {
+    if (!this.ctx || !this.duck) return null;
+    try {
+      const buf = await this.loadClip(url), c = this.ctx, t = c.currentTime + 0.05, d = this.duck.gain;
+      const src = c.createBufferSource(), g = c.createGain(); src.buffer = buf; src.connect(g); g.connect(this.master); g.gain.value = 1.1;
+      d.cancelScheduledValues(t); d.setValueAtTime(d.value, t); d.linearRampToValueAtTime(dip, t + 0.35);
+      d.setValueAtTime(dip, t + buf.duration); d.linearRampToValueAtTime(1, t + buf.duration + 0.9);
+      src.start(t + 0.3);
+      const h = { end: t + 0.3 + buf.duration, stop: () => { const n = c.currentTime; try { src.stop(n + 0.05); } catch (e) { } d.cancelScheduledValues(n); d.setValueAtTime(d.value, n); d.linearRampToValueAtTime(1, n + 0.3); } };
+      return h;
+    } catch (e) { console.warn("voice failed", url, e); return null; }
   }
   // Radio dial static: band-passed noise with a faint whistle sweeping past, held while the next
   // station tunes in. Each turn of the dial restarts it.
