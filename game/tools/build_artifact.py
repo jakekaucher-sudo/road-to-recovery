@@ -36,6 +36,17 @@ for base, _, files in os.walk(os.path.join(GAME, "audio")):
 # van artwork named in config.js
 for rel in re.findall(r'"\.\./(assets/[^"]+)"', open(os.path.join(GAME, "config.js")).read() + open(os.path.join(GAME, "src/cine.js")).read()):
     copy(os.path.join(ROOT, rel), os.path.join(DIST, rel))
+# The Artifact host injects a script ahead of the page, so the page's import map is ignored: point every
+# bare "three" / "three/addons/..." import at the vendored files with a relative path instead.
+BARE = re.compile(r"""(from\s*|import\s*\(\s*|import\s+)(["'])three(/addons/[^"']*)?\2""")
+for base, _, files in os.walk(DIST):
+    for f in files:
+        if not f.endswith(".js"): continue
+        p = os.path.join(base, f); src = open(p).read()
+        rel = os.path.relpath(os.path.join(DIST, "vendor", "three"), base).replace(os.sep, "/")
+        rel = rel if rel.startswith(".") else "./" + rel
+        out = BARE.sub(lambda m: m.group(1) + m.group(2) + rel + (m.group(3) or "/three.module.js") + m.group(2), src)
+        if out != src: open(p, "w").write(out)
 html = open(os.path.join(GAME, "index.html")).read()
 if WEB:
     # a normal web page; .nojekyll stops GitHub Pages from processing the files
