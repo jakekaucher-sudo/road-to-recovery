@@ -2,13 +2,14 @@
 // resolution (drops pixel ratio, then anti-aliasing, then bloom, then shadows
 // if frames are slow), and bloom post-processing with 4x MSAA on capable machines.
 import { viewSize } from "../orient.js";
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 import { setTextureQuality } from "./textures.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { EffectComposer } from "../../vendor/three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "../../vendor/three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "../../vendor/three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "../../vendor/three/addons/postprocessing/OutputPass.js";
+import { ShaderPass } from "../../vendor/three/addons/postprocessing/ShaderPass.js";
+import { GradeShader } from "./realism.js";
 
 // Guards bloom against NaN/inf pixels (one bad pixel would otherwise blacken the frame).
 const Sanitize = { uniforms: { tDiffuse: { value: null } }, vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
@@ -18,7 +19,7 @@ export function detectQuality(mobile) {
   const q = new URLSearchParams(location.search).get("q");
   const dpr = window.devicePixelRatio || 1;
   const lowEnd = mobile || q === "low";
-  if (q === "high" || !lowEnd) return { high: true, mobile, dpr, shadows: true, shadowMap: 2048, bloom: true, texScale: 2, rain: 2600, particles: 900, debris: 70, far: 900 };
+  if (q === "high" || !lowEnd) return { high: true, grade: true, mobile, dpr, shadows: true, shadowMap: 2048, bloom: true, texScale: 2, rain: 2600, particles: 900, debris: 70, far: 900 };
   return { high: false, mobile, dpr, shadows: false, shadowMap: 0, bloom: false, texScale: 1, rain: 900, particles: 360, debris: 36, far: 600 };
 }
 
@@ -68,6 +69,7 @@ export class Engine {
     this.composer.addPass(new ShaderPass(Sanitize));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(this.w / 2, this.h / 2), 0.32, 0.45, 0.86); this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    if (this.q.grade) { this.grade = new ShaderPass(GradeShader); this.composer.addPass(this.grade); }   // film grade on the finished frame
   }
   cost(L) { return L.pr * L.pr * (1 + 0.25 * L.msaa); }               // relative pixel work of a level
   setMsaa(n) {
@@ -83,6 +85,7 @@ export class Engine {
   render(dtMs) {
     if (!this.scene) return;
     this.adapt(dtMs);                      // before drawing: a resize clears the canvas, so never after
+    if (this.grade) this.grade.uniforms.uTime.value = performance.now() / 1000;
     if (this.composer && this.q.bloom) this.composer.render(); else this.renderer.render(this.scene, this.cam);
   }
   // Compile every shader a scene needs up front, so nothing stalls the first time it appears on screen.

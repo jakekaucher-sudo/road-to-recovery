@@ -6,7 +6,7 @@ import { buildTrack, findSeg, SEG, ROAD_W } from "./track.js";
 import { WEATHER, blendWeather } from "./weather.js";
 import { DEFS, HAZ, carWidth } from "./sprites.js";
 import { CAM } from "./render.js";
-import { INPUT, calibrateGyro, tiltNote, rumble } from "./input.js";
+import { INPUT, calibrateGyro, tiltNote, rumble, rumbleTick } from "./input.js";
 import { getCutscene } from "./cutscenes.js";
 import { U2M } from "./three/space.js";
 import { RESTORE_DUR } from "./screens.js";
@@ -14,7 +14,7 @@ import { Radio } from "./radio.js";
 const easeIO = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 const VAN_W = 0.24;          // van width in road half-widths
-const JUMP_G = 13;           // gravity for jumps (m/s^2): a little stronger than real, so jumps stay arcade-snappy
+const JUMP_G = 21;           // gravity for jumps (m/s^2): stronger than real, so a ramp gives about a second of air, not a float
 const DT = 1 / 60;
 const RADIO_STATES = new Set(["stageIntro", "drive", "restoring", "results"]);   // where stage music (or the radio) plays
 
@@ -40,12 +40,13 @@ export class Game {
     this.env = WEATHER[this.stageCfg.weather];
     const prev = i > 0 ? WEATHER[this.cfg.stages[i - 1].weather] : WEATHER.dusk;
     this.envFrom = prev; this.envBlend = 0;
-    const P = this.player; P.z = 0; P.x = 0.35; P.speed = 0; P.y = 0; this.jumpReset();
+    const P = this.player; P.z = 0; P.x = 0.35; P.speed = 0; P.y = 0; P.vx = 0; this.steerS = 0; this.lastSpeed = 0; this.jumpReset();
+    this.body = { p: 0, pv: 0, r: 0, rv: 0, h: 0, hv: 0 }; this.lastRoadY = this.lastVyRoad = undefined;
     this.camX = P.x * 0.8; this.parallax = 0; this.delivered = false; this.overshot = false; this.autoStop = false;
     // Phones steer by tilt or touch, which is slower than a keyboard, so they get a little more time,
     // and nobody starts a stage with less than a fair floor (a retry after time-up never carries anything over).
     const base = this.stageTime();
-    this.time = Math.max((keepTime ? this.time : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0; this.boostQueued = false;
+    this.time = Math.max((keepTime ? Math.min(this.time, this.cfg.difficulty.carryMax ?? 1e9) : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0; this.boostQueued = false;
     this.crashes = 0; this.stopT = 0; this.messages = []; this.particles = []; this.tornado = null;
     this.restoreP[this.stageCfg.business] = 0;
     // the hidden helicopter escort: earned by running out of time, offered once on the retry
@@ -120,11 +121,12 @@ export class Game {
     }
     this.clock += DT; this.stateT += DT;
     if (I.mutePressed) this.audio.toggleMute();
-    if (I.pausePressed && ["drive", "stageIntro"].includes(this.state)) { this.paused = !this.paused; if (this.paused) this.pauseFact = this.randomFact(); this.audio.pauseMusic(this.paused); this.escortSound(this.paused ? "pause" : "resume"); }
+    if (I.pausePressed && ["drive", "stageIntro"].includes(this.state)) { this.paused = !this.paused; if (this.paused) { this.pauseFact = this.randomFact(); this.radio.silence(); } this.audio.pauseMusic(this.paused); this.escortSound(this.paused ? "pause" : "resume"); }
     this.updateMusic();
     if (this.paused) { if (I.confirmPressed && this.mobile) { this.paused = false; this.audio.pauseMusic(false); } return; }
     if (I.radioStep && RADIO_STATES.has(this.state)) this.radio.step(I.radioStep);
-    this.radio.update(DT);
+    this.radio.update(DT, this.state === "drive" && !this.delivered);
+    if (!RADIO_STATES.has(this.state)) this.radio.silence();
     this.messages.forEach(m => m.t += DT); this.messages = this.messages.filter(m => m.t < m.life);
     this.fundsShown = lerp(this.fundsShown, this.funds, 0.08); if (Math.abs(this.fundsShown - this.funds) < 50) this.fundsShown = this.funds;
     const T = this.stateT;
@@ -158,6 +160,7 @@ export class Game {
       case "ending": if (I.confirmPressed && T > 4.5) { this.setState("title"); } break;
     }
     // particles
+    if (this.state !== "drive" && this.state !== "stageIntro") { this.skid = 0; this.audio.skid(0); }
     for (const p of this.particles) { p.t += DT; p.x += p.vx * DT; p.y += p.vy * DT; p.vy += (p.g || 0) * DT; }
     this.particles = this.particles.filter(p => p.t < p.life);
   }
@@ -225,7 +228,13 @@ export class Game {
     // lateral: steering, centrifugal force, wind
     const grip = lerp(env.grip * (surfaceWater > 0 ? 0.7 : 1), 1, calm * 0.8);
     const steerRate = C.steer * (0.3 + 0.7 * Math.min(1, speedK * 1.4)) * (0.7 + 0.3 * grip);
-    P.x += steer * steerRate * DT * (P.speed > 50 ? 1 : 0) * (air ? 0.3 : 1);
+    // the wheel turns in and comes back progressively (a key press never snaps it), and the tyres take
+    // a moment to bite, a little longer in the wet: the van carries its weight across the road
+    const sr = Math.abs(steer) > Math.abs(this.steerS) && Math.sign(steer) === Math.sign(this.steerS || steer) ? 14 : 18;   // quick: the wheel answers at once
+    this.steerS += clamp(steer - this.steerS, -sr * DT, sr * DT);
+    const latT = this.steerS * steerRate * (P.speed > 50 ? 1 : 0) * (air ? 0.3 : 1), bite = (air ? 1.2 : 16) * (0.55 + 0.45 * grip);
+    P.vx += (latT - P.vx) * (1 - Math.exp(-bite * DT));
+    P.x += P.vx * DT;
     const assist = this.mobileAssist();
     if (!air) P.x -= speedK * speedK * seg.curve * C.centrifugal * (1 + (1 - grip) * 0.9) * DT * 1.6 * (1 - assist * 0.6);
     if (Math.abs(steer) < 0.15 && Math.abs(P.x) > 0.82 && Math.abs(P.x) < 1.3) P.x -= Math.sign(P.x) * C.roadKeep * DT * Math.min(1, speedK * 2);   // drifting off the edge: ease back on
@@ -236,7 +245,7 @@ export class Game {
     else wind = gustA * 0.15;
     this.windNow = wind * (controls ? 1 : 0) * (1 - assist) * (1 - calm) * (air ? 0 : 1);
     P.x += this.windNow * DT * Math.min(1, speedK * 1.5 + 0.2);
-    P.x = clamp(P.x, -2.4, 2.4);
+    if (Math.abs(P.x) > 1.45) { P.x = Math.sign(P.x) * 1.45; P.vx = 0; }   // the shoulder ends where the yards start: the van can't wander in among the trees and houses
     // advance
     const dz = P.speed * DT; P.z += dz;
     const pseg = findSeg(tr, P.z + CAM.playerZ), nseg = tr.segs[Math.min(tr.N - 1, pseg.i + 1)], pct = ((P.z + CAM.playerZ) % SEG) / SEG;
@@ -252,6 +261,19 @@ export class Game {
     const yawT = clamp(steer * 0.6 * Math.min(1, speedK * 2.5) + (1 - grip) * Math.sin(this.clock * 7) * 0.12 * speedK, -1, 1);
     this.yaw = lerp(this.yaw, yawT, 0.14); this.roll = lerp(this.roll, -this.yaw * 0.035 - seg.curve * 0.004 * speedK, 0.1);
     this.hitFx = Math.max(0, this.hitFx - DT * 3); this.shake = Math.max(0, this.shake - DT * 2.5);
+    // long-travel suspension, the way a desert trophy truck rides: the body sways out of turns on soft,
+    // lightly damped springs, squats under power, dives under braking, goes light over crests and soaks up
+    // bumps; the wheels stay on the road (the controls stay crisp: this is all body motion)
+    // out of turns and the suspension soaks up road bumps and landings
+    const B = this.body, aLong = (P.speed - this.lastSpeed) / DT / C.maxSpeed; this.lastSpeed = P.speed;
+    const pT = air ? 0 : clamp(aLong * 0.04, -0.07, 0.045), rT = air ? 0 : clamp((this.steerS * 0.8 + seg.curve * 0.1) * speedK * speedK * 0.11, -0.1, 0.1);
+    B.pv += ((pT - B.p) * 45 - B.pv * 5) * DT; B.p += B.pv * DT;               // ~1.1 Hz, settles after a small overshoot
+    B.rv += ((rT - B.r) * 38 - B.rv * 4.5) * DT; B.r += B.rv * DT;             // ~1 Hz sway
+    // heave: road texture, and the road's own rise and fall (light over a crest, compressed in a dip)
+    const vyRoad = (P.y - (this.lastRoadY ?? P.y)) / DT * U2M; this.lastRoadY = P.y;
+    const ayRoad = (vyRoad - (this.lastVyRoad ?? vyRoad)) / DT; this.lastVyRoad = vyRoad;
+    const bumps = air ? 0 : noise1(P.z * 0.0011, 3) * 0.035 * speedK * (off ? 2.5 : 1) + clamp(-ayRoad * 0.004, -0.1, 0.1);
+    B.hv += ((bumps - B.h) * 120 - B.hv * 9) * DT; B.h += B.hv * DT;
     const roadRumble = (off ? 3 : 0.4) * speedK + env.gust * Math.abs(gustA) * 2;
     this.camShakeY = (Math.sin(this.clock * 50) * roadRumble + (Math.random() - 0.5) * this.shake * 14);
     // collisions
@@ -268,6 +290,13 @@ export class Game {
     this.checkDelivery();
     this.updateDerived();
     this.audio.engine(Math.min(1.3, speedK), true, boosting);
+    // tyres: a tight turn at speed (or a brake-and-steer slide) makes them squeal and smoke
+    const slide = brake > 0 && Math.abs(steer) > 0.3 && speedK > 0.35;
+    const skidT = air || P.speed < 1500 ? 0 : clamp((Math.abs(this.steerS) * Math.min(1.2, speedK) - 0.36) / 0.3, 0, 1) * (surfaceWater > 0 ? 0.4 : 1) + (slide ? 0.7 : 0);
+    this.skid = (this.skid || 0) + (Math.min(1, skidT) - (this.skid || 0)) * Math.min(1, DT * 10);
+    this.audio.skid(controls ? this.skid : 0);
+    // controller haptics: road texture with speed, more on the verge, the tyres, nitrous
+    if (controls) rumbleTick((off ? 0.35 * speedK : 0) + this.skid * 0.4 + boosting * 0.25, 0.05 * speedK + (off ? 0.4 * speedK : 0) + this.skid * 0.55 + boosting * 0.35);
   }
 
   collide(seg, nseg, off) {
@@ -287,14 +316,17 @@ export class Game {
         }
       }
       for (const p of s.pickups) {
-        if (!p.got && Math.abs(P.x - p.offset) < (VAN_W + 0.2) / 2) { p.got = true; this.time += p.bonus; this.audio.sfxPlay("pickup"); this.msg("+" + p.bonus + " SEC", "#ECC444", 1.0, 6, 0.36); this.events.push({ type: "pickup" }); }
+        if (!p.got && Math.abs(P.x - p.offset) < (VAN_W + 0.2) / 2) { p.got = true; this.time += p.bonus; this.audio.sfxPlay("pickup"); rumble(0.25, 90); this.msg("+" + p.bonus + " SEC", "#ECC444", 1.0, 6, 0.36); this.events.push({ type: "pickup" }); }
       }
     }
     // traffic
     for (const car of this.track.cars) {
       const dzc = car.z - (P.z + CAM.playerZ);
-      if (dzc > -60 && dzc < 260 && P.speed > car.speed && Math.abs(P.x - car.offset) < (VAN_W + carWidth(car)) / 2 * 0.9) {
-        P.speed = car.speed * 0.55; car.z += 400; car.hit = 1; this.crash(1, (P.x - car.offset) > 0 ? 0.18 : -0.18, true);
+      if (dzc > -60 && dzc < 260 && P.speed > car.speed && this.clock > (car.cool || 0) && Math.abs(P.x - car.offset) < (VAN_W + carWidth(car)) / 2 * 0.9) {
+        // a rear-end shunt: the car is shoved ahead and aside, the van loses most of the difference
+        const rel = P.speed - car.speed, side = (P.x - car.offset) > 0 ? 1 : -1;
+        car.base = car.base || car.speed; car.speed += rel * 0.6; P.speed = car.speed - rel * 0.1; car.lane0 = clamp(car.lane0 - side * 0.5, -1.15, 1.15); car.z += 30; car.hit = 1; car.cool = this.clock + 1.5;
+        this.crash(1, side * 0.16, true);
         this.msg("WATCH THE TRAFFIC!", "#CD2127", 1.0, 4, 0.36);
       }
     }
@@ -312,7 +344,7 @@ export class Game {
     rumble(Math.min(1, 0.35 + mult * 0.5), 140 + mult * 160);
     const P = this.player;
     if (!already) P.speed *= mult;
-    P.x += push; this.crashes++; this.hitFx = 1; this.shake = 1.2;
+    P.x += push; P.vx = push * 4; this.crashes++; this.hitFx = 1; this.shake = 1.2;
     this.audio.sfxPlay("crash");
     this.events.push({ type: "sparks" });
   }
@@ -343,6 +375,7 @@ export class Game {
     const P = this.player, tr = this.track, vanZ = P.z + CAM.playerZ, limit = (tr.finish.zoneStart - 20) * SEG, front = this.escortFront();
     for (const s of tr.segs) if (s.cars.length) s.cars.length = 0;
     for (const car of tr.cars) {
+      if (car.base && !car.parked) { car.speed += (car.base - car.speed) * DT * 0.35; if (Math.abs(car.speed - car.base) < 20) { car.speed = car.base; car.base = 0; } }   // a shoved car settles back to its pace
       car.z += car.speed * DT;
       car.offset = car.lane0 + Math.sin(this.clock * 0.5 + car.seed) * 0.28 * car.swerve;
       car.braking = car.swerve > 0 && Math.sin(this.clock * 0.5 + car.seed) > 0.85;
@@ -360,7 +393,7 @@ export class Game {
         // the bridge is up: traffic pulls onto the shoulder and waits at the gate
         if (j.kind === "drawbridge" && !car.parked && car.z > (j.up0 - 40) * SEG && car.z < j.span1 * SEG) { car.parked = true; car.parkK = 0; car.speed0 = car.speed; car.parkSide = car.lane0 >= 0 ? 1 : -1; }
         // a car in the carrier's lane changes lanes well before reaching it
-        if (j.kind === "carrier" && car.lane0 > 0.3 && car.z > (j.i0 - 120) * SEG && car.z < (j.end + 4) * SEG) car.laneGoal = 0;
+        if ((j.kind === "carrier" || j.kind === "kicker") && Math.abs(car.lane0 - j.lane) < 0.3 && car.z > (j.i0 - 120) * SEG && car.z < (j.end + 4) * SEG) car.laneGoal = j.lane > 0.3 || j.lane < -0.3 ? 0 : 0.62;
       }
       if (car.laneGoal !== undefined) { car.lane0 += (car.laneGoal - car.lane0) * Math.min(1, DT * 1.4); if (Math.abs(car.laneGoal - car.lane0) < 0.01) { car.lane0 = car.laneGoal; car.laneGoal = undefined; } }
       if (car.parked) { car.speed = Math.max(0, car.speed - 4000 * DT); car.parkK = Math.min(1, car.parkK + DT * 0.7); const k = car.parkK * car.parkK * (3 - 2 * car.parkK); car.offset = lerp(car.offset, car.parkSide * 1.3, k); car.braking = true; }
@@ -384,21 +417,21 @@ export class Game {
   deliver(precision, overshot) {
     this.stopEscort(); this.delivered = true; this.zoneHint = false; this.tornadoWarned = false; this.hurrWarned = false;
     const st = this.stageCfg, tl = this.time;
-    let stars = tl > st.time * 0.35 ? 3 : tl > st.time * 0.15 ? 2 : 1;
+    let stars = tl > st.time * 0.1 ? 3 : tl > st.time * 0.03 ? 2 : 1;   // (timers are tight: a tenth of the time left is a great run)
     if (overshot || precision < 0.25) stars = Math.max(1, stars - 1);
     if (this.crashes > 6) stars = Math.max(1, stars - 1);
     this.lastResult = { timeLeft: tl, precision: Math.max(0, precision), overshot, crashes: this.crashes, stars, counted: false };
-    this.audio.sfxPlay("deliver"); this.restoreSfx = false; this.autoStop = false;
+    this.audio.sfxPlay("deliver"); rumble(0.5, 300); this.restoreSfx = false; this.autoStop = false;
     this.player.speed = 0;
     const cs = getCutscene(this.cfg.cutscenes.arrival[this.stageIndex]);
     if (cs) this.startCutscene(cs, "results");
     else this.setState("restoring");
   }
-  timeUp() { this.stopEscort(); this.audio.sfxPlay("timeup"); this.audio.setMusic(false); this.setState("gameover"); }
+  timeUp() { rumble(0.8, 500); this.stopEscort(); this.audio.sfxPlay("timeup"); this.audio.setMusic(false); this.setState("gameover"); }
 
   // ------------------------------------------------------------- jumps: drawbridge (stage 1), car carrier (stage 2)
   jumpReset() { const P = this.player; Object.assign(P, { air: false, airY: 0, vy: 0, hAbs: 0, onRamp: null, airT: 0, assisted: false, lastPart: null, pitch: 0, jump: null }); this.jumpsDone = new Set(); this.carrierHit = 0; }
-  launch(h, vy, j) { const P = this.player; Object.assign(P, { air: true, hAbs: h, lipY: h, vy, airT: 0, assisted: false, jump: j, onRamp: null }); this.events.push({ type: "launch" }); }
+  launch(h, vy, j) { rumble(0.3, 120); const P = this.player; Object.assign(P, { air: true, hAbs: h, lipY: h, vy, airT: 0, assisted: false, jump: j, onRamp: null }); this.events.push({ type: "launch" }); }
   updateJumps(controls) {
     const P = this.player, tr = this.track, J = tr.jumps; if (!J || !J.length) return;
     const vz = P.z + CAM.playerZ, v = P.speed * U2M, roadY = P.y * U2M, s = findSeg(tr, vz);
@@ -413,15 +446,15 @@ export class Game {
     }
     P.airY = 0; P.pitch = 0;
     for (const j of J) {
-      if (j.kind !== "carrier") continue;
+      if (j.kind !== "carrier" && j.kind !== "kicker") continue;
       const z0 = j.i0 * SEG, zEnd = j.end * SEG;
       if (vz < z0 - SEG || vz > zEnd) { if (P.onRamp === j) P.onRamp = null; continue; }
-      const dx = P.x - j.lane, d = (vz - z0) * U2M, rampL = j.ramp * SEG * U2M, deckL = j.deck * SEG * U2M, kickL = 3;
+      const dx = P.x - j.lane, d = (vz - z0) * U2M, rampL = j.ramp * SEG * U2M, deckL = j.deck * SEG * U2M, kickL = j.kick ? 3 : rampL;
       if (P.onRamp !== j && d < 1.5 && d > -1 && Math.abs(dx) < 0.2) P.onRamp = j;          // lined up with the ramp: drive on
       if (P.onRamp === j) {
         P.x = j.lane + clamp(dx, -0.08, 0.08);
-        if (d >= rampL + deckL) { this.launch(roadY + j.H + j.kick, v * Math.sin(Math.atan2(j.kick, kickL)) + 2.2, j); P.airY = j.H + j.kick; return; }
-        const onKick = clamp((d - (rampL + deckL - kickL)) / kickL, 0, 1);
+        if (d >= rampL + deckL) { this.launch(roadY + j.H + j.kick, v * Math.sin(Math.atan2(j.kick || j.H, kickL)) + (j.kick ? 2.2 : 0.8), j); P.airY = j.H + j.kick; return; }
+        const onKick = j.kick ? clamp((d - (rampL + deckL - kickL)) / kickL, 0, 1) : 0;
         P.airY = d < rampL ? j.H * Math.max(0, d) / rampL : j.H + j.kick * onKick;
         P.pitch = d < rampL ? Math.atan2(j.H, rampL) : onKick > 0 ? Math.atan2(j.kick, kickL) : 0;
       } else if (Math.abs(dx) < 0.3 && d > 0 && this.clock > this.carrierHit) {                // clipped its side
@@ -437,7 +470,7 @@ export class Game {
     P.lastPart = s.bridge ? s.bridge.part : null;
   }
   land(impact) {
-    const P = this.player, j = P.jump; P.air = false; P.airY = 0; P.vy = 0; P.pitch = 0;
+    const P = this.player, j = P.jump; P.air = false; P.airY = 0; P.vy = 0; P.pitch = 0; this.body.hv -= Math.min(3.2, impact * 0.16); this.body.pv -= Math.min(0.5, impact * 0.015);   // the springs take the landing: compress, rebound, settle
     rumble(Math.min(1, 0.3 + impact / 20), 220); this.events.push({ type: "land", impact });
     // too slow to clear the gap (the far leaf caught the van): that is the rough landing
     if (P.assisted) { P.speed *= 0.6; this.shake = 1.1; this.hitFx = 0.6; this.audio.sfxPlay("crash"); this.msg("ROUGH LANDING!", "#FFB4B4", 1.2, 5, 0.36); return; }
@@ -471,9 +504,10 @@ export class Game {
   escortFront() { const E = this.escort; return E.active && E.t > 0.6 ? this.player.z + CAM.playerZ + this.cfg.escort.reach / U2M * sat((E.t - 0.6) / 1.4) : -1; }
   escortSound(what) {
     const A = this.audio, S = this.cfg.escort.sfx, E = this.escort; if (!A.ctx) return;
-    if (what === "start") { A.sample(S.radio, { gain: 0.9 }); A.sample(S.pass, { gain: 1.0, delay: 0.15 }); }
+    if (what === "start") { A.sample(S.radio, { gain: 0.9 }); A.sample(S.pass, { gain: 1.0, delay: 0.15 }); if (S.voiceIn) A.voice(S.voiceIn, 0.45); }
     else if (what === "loop" || (what === "resume" && E.active && E.loopOn)) { E.loopOn = true; A.sample(S.loop, { loop: true, gain: 0.55, fadeIn: what === "loop" ? 1.2 : 0.3 }).then(h => { if (E.active && !this.paused) E.loop = h; else if (h) h.stop(0.2); }); }
-    else if ((what === "end" || what === "pause" || what === "stop") && E.loop) { E.loop.stop(what === "end" ? 3 : 0.2); E.loop = null; }
+    if (what === "end") { A.sample(S.radio, { gain: 0.9 }); if (S.voiceOut) A.voice(S.voiceOut, 0.45); }   // Sam signs off as he climbs away
+    if ((what === "end" || what === "pause" || what === "stop") && E.loop) { E.loop.stop(what === "end" ? 3 : 0.2); E.loop = null; }
   }
   stopEscort() { const E = this.escort; if (!E) return; this.escortSound("stop"); E.active = false; E.ready = false; E.out = -1; E.k = 0; E.loopOn = false; }
 
@@ -490,6 +524,7 @@ export class Game {
         for (const h of s.hazards) if (!h.hit && HAZ[h.kind] && HAZ[h.kind].fx !== "none" && HAZ[h.kind].fx !== "water" && Math.abs(L - h.offset) < 0.5) score -= 10 / n;
         for (const c of s.cars) if (Math.abs(L - c.offset) < 0.45) score -= 12 / n;
         for (const j of tr.jumps) if (j.kind === "carrier" && s.i >= j.i0 - 10 && s.i <= j.end && Math.abs(L - j.lane) < 0.45) score -= 20 / n;
+        for (const j of tr.jumps) if (j.kind === "kicker" && s.i >= j.i0 - 10 && s.i <= j.end && Math.abs(L - j.lane) < 0.1) score += 8 / n;   // take the ramp
         for (const p of s.pickups) if (!p.got && Math.abs(L - p.offset) < 0.2) score += 2 / n;
       }
       if (score > bestScore) { bestScore = score; best = L; }
@@ -499,7 +534,7 @@ export class Game {
     const toZone = zoneMid - vanZ;
     if (toZone < 90 * SEG) target = 0.5;
     const seg = findSeg(tr, vanZ);
-    let steer = clamp((target - P.x) * 3 + seg.curve * 0.12 * P.speed / C.maxSpeed, -1, 1);
+    let steer = clamp((target - P.x) * 3.2 - (P.vx || 0) * 0.55 + seg.curve * 0.12 * P.speed / C.maxSpeed, -1, 1);   // damped for the tyres' lag
     steer -= this.windNow * 1.4;
     let gas = 1, brake = 0;
     const stopDist = P.speed * P.speed / (2 * C.brake) + 600;

@@ -1,6 +1,6 @@
 // Sky dome: gradient, sun disc and glow, moving procedural clouds and a
 // lightning flash term. One draw call, follows the camera.
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 
 const vert = /* glsl */`
 varying vec3 vDir;

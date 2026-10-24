@@ -17,6 +17,7 @@ export const CONFIG = {
     mobileTimeFactor: 1.12,   // phones get 12% more time on every stage
     minStartFactor: 1.3,      // phones never start a stage with less than 1.3x its (phone) base time
     retryFactor: 1.25,        // retrying after time runs out gives 1.25x the stage time
+    carryMax: 10,             // seconds of leftover time that carry into the next stage
     mobileAssist: { default: 0.2, hurricane: 0.55, tornado: 0.35 },   // share of wind and curve drift removed on phones
   },
   // ---- Hidden bonus: an SBA helicopter escort, offered on the retry after time runs out.
@@ -26,8 +27,8 @@ export const CONFIG = {
     duration: 12,             // seconds of escort
     ahead: 20, altitude: 10,  // where it flies (metres ahead of / above the van), framed below the HUD
     reach: 150,               // metres ahead that the downwash clears
-    pilot: { name: "SAM", role: "SBA AIR ESCORT", portrait: "art/sam/sam.png", line: "Looks like you need some help, partner. Follow me!" },
-    sfx: { pass: "audio/sfx/heli-pass.mp4", loop: "audio/sfx/heli-loop.mp4", radio: "audio/sfx/radio-click.mp4" },
+    pilot: { name: "SAM", role: "SBA AIR ESCORT", portrait: "art/sam/sam.png", line: "Looks like you need some help, partner. Follow me!", lineOut: "Yeee haw, good buddy, you got it from here!" },
+    sfx: { pass: "audio/sfx/heli-pass.mp4", loop: "audio/sfx/heli-loop.mp4", radio: "audio/sfx/radio-click.mp4", voiceIn: "audio/sfx/sam-in.mp4", voiceOut: "audio/sfx/sam-out.mp4" },   // Sam's voice: Artlist text-to-speech
   },
   physics: {
     maxSpeed: 12000,          // top speed without boost (shown as topMph)
@@ -48,13 +49,16 @@ export const CONFIG = {
   },
 
   // ---- Stages: weather, length (segments), time added, hazards, traffic -----
+  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.12-1.15x what
+  // the autopilot takes on average (it collects some pickups and crashes now and then). At most `carryMax` seconds
+  // left over carry into the next stage, so every stage stands on its own.
   // `weather` names a preset in src/weather.js.
   stages: [
-    { name: "AFTERMATH",       weather: "dusk",      length: 2600, time: 75, traffic: 12, hazards: 10, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
-    { name: "HEAVY WEATHER",   weather: "storm",     length: 2900, time: 64, traffic: 14, hazards: 16, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
-    { name: "FLOOD ZONE",      weather: "flood",     length: 3000, time: 66, traffic: 12, hazards: 18, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
-    { name: "TORNADO ALLEY",   weather: "tornado",   length: 3200, time: 68, traffic: 12, hazards: 22, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
-    { name: "HURRICANE COAST", weather: "hurricane", length: 3400, time: 76, traffic: 14, hazards: 24, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
+    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 80, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
+    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 92, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
+    { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 90, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
+    { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 98, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
+    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 116, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
   ],
 
   // ---- The five stops: two businesses, a homeowner, renters, a nonprofit ---
@@ -129,8 +133,9 @@ export const CONFIG = {
   // and each station is built by tools/make_radio_audio.py (see audio/README.md). url null = the stage's own song.
   radio: {
     stations: [
-      { id: "pulse", name: "PULSE", freq: "101.5 FM", genre: "ELECTRONIC", color: "#5CC8FF", url: null },
-      { id: "bigsky", name: "BIG SKY", freq: "98.7 FM", genre: "COUNTRY", color: "#ECC444", url: "audio/radio/country.mp4" },
+      { id: "pulse", name: "PULSE", freq: "101.5 FM", genre: "ELECTRONIC", color: "#5CC8FF", url: null, note: "With DJ Olivia.",
+        drops: ["audio/radio/olivia-1.mp4", "audio/radio/olivia-2.mp4", "audio/radio/olivia-3.mp4", "audio/radio/olivia-4.mp4", "audio/radio/olivia-5.mp4", "audio/radio/olivia-6.mp4"] },   // Olivia talks over the stage songs
+      { id: "bigsky", name: "BIG SKY", freq: "98.7 FM", genre: "COUNTRY", color: "#ECC444", url: "audio/radio/country.mp4", note: "With Alex." },
       { id: "storm", name: "THE STORM", freq: "104.1 FM", genre: "ROCK", color: "#FF5A5F", url: "audio/radio/rock.mp4" },
       { id: "heat", name: "HEAT", freq: "95.3 FM", genre: "HIP HOP", color: "#FF8A3D", url: "audio/radio/hiphop.mp4" },
       { id: "isla", name: "LA ISLA", freq: "92.9 FM", genre: "LATIN", color: "#3DDCB4", url: "audio/radio/latin.mp4", note: "Hosted by GC." },
@@ -155,7 +160,7 @@ export const CONFIG = {
   van: {
     rear: "assets/mrv-van/generated/mrv-van-04-rear-B.png",
     driverSide: "assets/mrv-van/adobe/reference-vector.svg",
-    passengerSide: "assets/mrv-van/v3/mrv-van-02-passenger-side.svg",
+    passengerSide: "assets/mrv-van/v3/mrv-van-02-passenger-side.png",   // rebuilt by assets/mrv-van/adobe/build_passenger_raster.mjs
     hero: "assets/mrv-van/illustrator/mrv-van-05-three-quarter.png",
     front: "assets/mrv-van/illustrator/mrv-van-03-front.png",
   },

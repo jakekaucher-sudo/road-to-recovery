@@ -8,10 +8,10 @@
 //  * the SBA mark and "DISASTER RECOVERY" are cut from the van's official rear artwork,
 //    never redrawn
 //  * windows are curved glass panels that follow the skin
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 import { resolveAsset } from "../assets.js";
 import { glowTexture } from "./textures.js";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeGeometries } from "../../vendor/three/addons/utils/BufferGeometryUtils.js";
 
 const NAVY = "#1C3D73", RED = "#CD2127", WHITE = "#F3F5F7", TRIM = "#4A4E51", FRAME = "#15181c";
 const MAST = 5.2;                                   // rotor mast station: metres back from the nose tip
@@ -318,7 +318,9 @@ export function mergeStatic(group, skip = () => false) {
     done.push(o);
   });
   for (const o of done) { o.parent.remove(o); o.geometry.dispose(); }
-  for (const [m, geos] of buckets) { const g = mergeGeometries(geos, false); geos.forEach(x => x.dispose()); if (g) { const mesh = new THREE.Mesh(g, m); mesh.castShadow = true; group.add(mesh); } else console.warn("helicopter: could not merge", m.type); }
+  for (const [m, geos0] of buckets) { const mixed = geos0.some(g => g.index) && geos0.some(g => !g.index), geos = mixed ? geos0.map(g => g.index ? g.toNonIndexed() : g) : geos0;
+    for (const g of geos) { if (!g.attributes.uv) g.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); }
+    const g = mergeGeometries(geos, false); if (mixed) geos0.forEach(x => x.dispose()); geos.forEach(x => x.dispose()); if (g) { const mesh = new THREE.Mesh(g, m); mesh.castShadow = true; group.add(mesh); } else console.warn("helicopter: could not merge", m.type); }
 }
 
 export async function buildHeli(quality = {}) {

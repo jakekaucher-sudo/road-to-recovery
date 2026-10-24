@@ -2,7 +2,7 @@
 // with its ramp down (stage 2). The drawbridge's leaves are the road itself (the track tilts them);
 // this adds what makes it read as a bridge: girders, railings, piers into the river, the tender's
 // house, flashing warning lights and raised gates. The carrier is a complete truck.
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 import { SEG } from "../track.js";
 import { U2M, HALFW, worldAt } from "./space.js";
 import { carGeometry, CAR_COLORS } from "./props3d.js";
@@ -83,6 +83,23 @@ export function buildJumps(track, cl, look, q) {
       water = new THREE.Mesh(new THREE.PlaneGeometry(900, len).rotateX(-Math.PI / 2),
         q.high ? new THREE.MeshStandardMaterial({ color: 0x2c5266, roughness: 0.12, metalness: 0.35 }) : new THREE.MeshPhongMaterial({ color: 0x2c5266, shininess: 80, specular: 0x8fb3c4 }));
       water.position.set(c.x, waterY, c.z); water.rotation.y = -worldAt(cl, ((j.gap0 + j.gap1) / 2) * SEG, 0).h; water.receiveShadow = true; group.add(water);
+    }
+    if (j.kind === "kicker") {
+      // a steel launch ramp: diamond-plate deck on a braced frame, striped edges, amber flashers
+      const g = new THREE.Group(), p0 = at(cl, j.i0, j.lane), rampL = j.ramp * SEG * U2M, W = 2.7;
+      g.position.copy(p0); g.rotation.y = -worldAt(cl, j.i0 * SEG, j.lane).h; group.add(g);
+      const side = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(rampL, 0), new THREE.Vector2(rampL, j.H), new THREE.Vector2(rampL - 0.25, j.H)]);
+      const sideGeo = new THREE.ExtrudeGeometry(side, { depth: 0.12, bevelEnabled: false });
+      for (const sx of [-1, 1]) { const m = new THREE.Mesh(sideGeo, steel); m.rotation.y = Math.PI / 2; m.position.set(sx * (W / 2) - (sx > 0 ? 0.12 : 0), 0, 0); m.scale.set(1, 1, 1); g.add(m); }
+      g.add(beam(new THREE.Vector3(0, 0.02, 0), new THREE.Vector3(0, j.H, -rampL), W, 0.1, lit(0x8a9096, { r: 0.45, m: 0.7 })));
+      for (const sx of [-1, 1]) g.add(beam(new THREE.Vector3(sx * (W / 2 - 0.1), 0.06, 0), new THREE.Vector3(sx * (W / 2 - 0.1), j.H + 0.05, -rampL), 0.2, 0.08, yellow));
+      g.add(beam(new THREE.Vector3(-W / 2, j.H - 0.15, -rampL + 0.05), new THREE.Vector3(W / 2, j.H - 0.15, -rampL + 0.05), 0.5, 0.3, yellow));
+      for (const t of [0.35, 0.7]) for (const sx of [-1, 1]) g.add(beam(new THREE.Vector3(sx * (W / 2 - 0.3), 0, -rampL * t), new THREE.Vector3(sx * (W / 2 - 0.3), j.H * t, -rampL * t), 0.12, 0.12, dark));
+      g.updateMatrixWorld(true);
+      for (const sx of [-1, 1]) flasher(new THREE.Vector3(sx * W / 2, j.H + 0.35, -rampL).applyMatrix4(g.matrixWorld), 0xffa020, sx > 0 ? 0.5 : 0, 1.6);
+      const sp = at(cl, j.i0 - 60, (j.lane >= 0 ? 1 : -1) * (1 + 1.6 / HALFW)), tex = textTexture([{ text: "RAMP AHEAD", size: 84, color: "#151515" }, { text: j.lane > 0.3 ? "RIGHT LANE" : j.lane < -0.3 ? "LEFT LANE" : "CENTER LANE", size: 70, color: "#151515" }], { bg: "#F2C230", border: "#151515", w: 512, h: 320 });
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); sign.position.set(sp.x, sp.y + 3.2, sp.z); sign.rotation.y = -worldAt(cl, (j.i0 - 60) * SEG, 0).h; group.add(sign);
+      group.add(beam(new THREE.Vector3(sp.x, sp.y, sp.z), new THREE.Vector3(sp.x, sp.y + 2.2, sp.z), 0.12, 0.12, dark));
     }
     if (j.kind === "carrier") {
       // built in its own frame: forward is -z, the rear of the ramp at z = 0, standing on the road

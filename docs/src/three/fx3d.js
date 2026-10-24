@@ -1,7 +1,7 @@
 // Weather and effects: GPU rain, particle pool (spray, sparks, dust, glints),
 // wind-blown debris, lightning bolts, the tornado funnel, the ocean and flood
 // water planes. Everything is sized for phones first.
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 import { glowTexture } from "./textures.js";
 
 // ---------------------------------------------------------------- rain

@@ -1,6 +1,6 @@
 // Title screen showroom: the 3D van on a slowly turning platform at dusk,
 // with a light synthwave touch (sunset sun, grid floor, neon rim lights).
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 import { buildVan } from "./van3d.js";
 
 export function makeTitleScene(art, quality) {

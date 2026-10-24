@@ -2,7 +2,7 @@
 // (so off-screen chunks are culled), plus water patches on the road and the
 // glowing delivery zone. Terrain shape reacts to the stage: rolling hills,
 // flooded fields, or a beach dropping into the sea on the right.
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 import { SEGM, HALFW } from "./space.js";
 import { asphaltTexture, curbTexture, groundTexture, chevronTexture } from "./textures.js";
 
@@ -21,7 +21,8 @@ export function buildRoad(track, cl, look, quality) {
   const lit = quality.high ? THREE.MeshStandardMaterial : THREE.MeshLambertMaterial;
   const roadMat = new lit({ map: T.asphalt, ...(quality.high ? { roughness: 0.9 - 0.48 * look.wet, metalness: 0.0 } : {}) });
   const curbMat = new THREE.MeshLambertMaterial({ map: T.curb });
-  const groundMat = new THREE.MeshLambertMaterial({ map: T.ground, vertexColors: true });
+  const groundMat = quality.high ? new THREE.MeshStandardMaterial({ map: T.ground, vertexColors: true, roughness: 0.95, metalness: 0 }) : new THREE.MeshLambertMaterial({ map: T.ground, vertexColors: true });
+  const roadMeshes = [];
   const coast = !!look.coast, flood = !!look.flood;
   const gA = new THREE.Color(look.groundA), gB = new THREE.Color(look.groundB), sh = new THREE.Color(look.shoulder), sand = new THREE.Color("#c9b688"), mud = new THREE.Color("#6e6448");
   const N = cl.N - 1;
@@ -75,9 +76,17 @@ export function buildRoad(track, cl, look, quality) {
     const mk = (pos, uv, idx, mat, colors) => {
       const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
       if (colors) g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-      g.setIndex(idx); g.computeVertexNormals(); const m = new THREE.Mesh(g, mat); m.receiveShadow = true; group.add(m); return m;
+      // the strips are built in both lateral directions: turn every triangle to face up, so normals
+      // and front faces agree (the lighting reads them from above)
+      for (let t = 0; t < idx.length; t += 3) {
+        const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
+        const ux = pos[b] - pos[a], uz = pos[b + 2] - pos[a + 2], vx = pos[c] - pos[a], vz = pos[c + 2] - pos[a + 2];
+        if (uz * vx - ux * vz < 0) { const k = idx[t + 1]; idx[t + 1] = idx[t + 2]; idx[t + 2] = k; }
+      }
+      g.setIndex(idx); g.computeVertexNormals();
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; group.add(m); return m;
     };
-    mk(rp, ru, rIdx, roadMat); mk(cp, cu, cIdx, curbMat); mk(gp, gu, gIdx, groundMat, gc);
+    roadMeshes.push(mk(rp, ru, rIdx, roadMat)); mk(cp, cu, cIdx, curbMat); mk(gp, gu, gIdx, groundMat, gc);
   }
   // fix winding of the left strips: we rely on double-sided ground for safety
   groundMat.side = THREE.DoubleSide; roadMat.side = THREE.DoubleSide; curbMat.side = THREE.DoubleSide;
@@ -93,7 +102,7 @@ export function buildRoad(track, cl, look, quality) {
   let water = null;
   if (wp.length) {
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(wp, 3)); g.setIndex(wIdx); g.computeVertexNormals();
-    const mat = quality.high ? new THREE.MeshStandardMaterial({ color: "#3d5a66", roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
+    const mat = quality.high ? new THREE.MeshStandardMaterial({ color: "#34505b", roughness: 0.2, metalness: 0, envMapIntensity: 0.7, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
                              : new THREE.MeshPhongMaterial({ color: "#3d5a66", shininess: 90, specular: "#9fb7c2", transparent: true, opacity: 0.82, side: THREE.DoubleSide });
     water = new THREE.Mesh(g, mat); group.add(water);
   }
@@ -107,6 +116,6 @@ export function buildRoad(track, cl, look, quality) {
   const zoneTex = T.chevron.clone(); zoneTex.needsUpdate = true;
   const zone = new THREE.Mesh(zg, new THREE.MeshBasicMaterial({ map: zoneTex, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }));
   zone.renderOrder = 2; group.add(zone);
-  return { group, water, zone, zoneTex, seaY, dispose() { group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } };
+  return { group, water, zone, zoneTex, seaY, roadMat, groundMat, roadMeshes, dispose() { group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } };
 }
 function P2(cl, i, off, dy) { const h = cl.hd[i], rx = Math.cos(h), rz = Math.sin(h); return [cl.px[i] + rx * off, cl.py[i] + dy, cl.pz[i] + rz * off]; }

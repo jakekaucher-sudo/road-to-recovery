@@ -1,6 +1,6 @@
 // Procedural textures (canvas-generated, no image files): asphalt with lane
 // markings, curbs, ground detail, soft blob shadow, glow sprite, chevrons.
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 
 // Set once by the engine: the GPU's best anisotropic filtering, and 2x texture detail on desktops.
 let ANISO = 8, SCALE = 1;

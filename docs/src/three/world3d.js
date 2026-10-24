@@ -1,13 +1,13 @@
 // The 3D game world: builds each stage from the track data and keeps it in
 // sync with the game state every frame (van, traffic, hazards, pickups,
 // weather, business facade, camera).
-import * as THREE from "three";
+import * as THREE from "../../vendor/three/three.module.js";
 import { SEG } from "../track.js";
 import { U2M, SEGM, HALFW, buildCenterline, worldAt, pitchAt } from "./space.js";
 import { LOOKS } from "./look.js";
 import { makeSky } from "./sky.js";
 import { buildRoad } from "./road3d.js";
-import { PROPS, carGeometry, CAR_COLORS, CAR_DIM, stopBuildingGeo, setPropDetail } from "./props3d.js";
+import { PROPS, carParts, CAR_COLORS, CAR_DIM, stopBuildingGeo, setPropDetail } from "./props3d.js";
 import { buildVan } from "./van3d.js";
 import { buildHeli } from "./heli3d.js";
 import { buildJumps } from "./jumps3d.js";
@@ -16,6 +16,7 @@ import { makeRain, makeParticles, makeFlyingDebris, makeLightning, makeTornado, 
 import { textTexture, glowTexture, blobTexture } from "./textures.js";
 import { drawStorefront } from "../buildings.js";
 import { CAM } from "../render.js";
+import { loadDetail, roadMaterial, groundMaterial, foliageAtlas, propSurface } from "./realism.js";
 import { INPUT } from "../input.js";
 
 const tmpC = new THREE.Color(), tmpC2 = new THREE.Color();
@@ -23,8 +24,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 function lookBlend(a, b, t) { const o = {}; for (const k in b) { const va = a[k], vb = b[k]; if (typeof vb === "string" && vb[0] === "#") o[k] = tmpC.set(va ?? vb).lerp(tmpC2.set(vb), t).getHexString().replace(/^/, "#"); else if (typeof vb === "number") o[k] = lerp(va ?? vb, vb, t); else o[k] = t < 0.5 ? va : vb; } return o; }
 
 // Wind sway for vegetation (vertex shader, scaled by height).
-function swayMaterial(uni) {
-  const m = new THREE.MeshLambertMaterial({ vertexColors: true });
+function swayMaterial(uni, high) {
+  const m = high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uni.uTime; sh.uniforms.uWind = uni.uWind;
     sh.vertexShader = "uniform float uTime; uniform float uWind;\n" + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -44,9 +45,16 @@ export class World3D {
     s.fog = new THREE.Fog(0xcccccc, 60, 600);
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1); s.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffffff, 2); s.add(this.sun); s.add(this.sun.target);
-    if (quality.shadows) { this.sun.castShadow = true; const sc = this.sun.shadow; sc.mapSize.set(quality.shadowMap || 1024, quality.shadowMap || 1024); sc.camera.left = -14; sc.camera.right = 14; sc.camera.top = 14; sc.camera.bottom = -14; sc.camera.near = 1; sc.camera.far = 80; sc.bias = -0.0008; sc.normalBias = 0.03; }
+    if (quality.shadows) { this.sun.castShadow = true; const sc = this.sun.shadow; const S = quality.high ? 42 : 14; sc.mapSize.set(quality.high ? 4096 : quality.shadowMap || 1024, quality.high ? 4096 : quality.shadowMap || 1024); sc.camera.left = -S; sc.camera.right = S; sc.camera.top = S; sc.camera.bottom = -S; sc.camera.near = 1; sc.camera.far = 160; sc.bias = -0.0008; sc.normalBias = 0.03; }
     this.uni = { uTime: { value: 0 }, uWind: { value: 0 } };
-    this.sway = swayMaterial(this.uni); this.solid = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.sway = swayMaterial(this.uni, quality.high); this.solid = quality.high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
+    // desktops: photo detail on road and verges, leafy crowns, surface detail on the props
+    if (quality.high) {
+      loadDetail(engine.renderer);
+      // leafy crowns: drawn leaves cut out of the atlas, both sides of each card lit
+      Object.assign(this.sway, { map: foliageAtlas(), alphaTest: 0.42, side: THREE.DoubleSide });
+      propSurface(this.solid);
+    }
     this.van = buildVan(art, quality); s.add(this.van.root);
     if (quality.high) { this.headSpot = new THREE.SpotLight(0xfff0d0, 0, 60, 0.5, 0.6, 1.2); this.van.root.add(this.headSpot); this.headSpot.position.set(0, 1.0, -2.8); this.headSpot.target.position.set(0, 0, -25); this.van.root.add(this.headSpot.target); }
     this.rain = makeRain(quality.rain); s.add(this.rain.mesh);
@@ -78,6 +86,8 @@ export class World3D {
     const group = new THREE.Group(); this.scene.add(group);
     const road = buildRoad(track, cl, look, this.q); group.add(road.group);
     const st = this.stage = { track, cl, look, prevLook, group, road, inst: {}, hz: [], pk: null, cars: {}, biz: null, scen: [] };
+    if (this.q.high) loadDetail(this.e.renderer).then(D => { if (!D || this.stage !== st) return; st.roadU = roadMaterial(road.roadMat, D); groundMaterial(road.groundMat, D); road.roadMat.needsUpdate = road.groundMat.needsUpdate = true;
+      this.e.warm(this.scene, this.cam); this.e.settle(2500); });   // compile the new shaders now, and don't count that stall against the GPU
     // ---- scenery instancing
     const byKind = {};
     for (const s of track.segs) for (const sp of s.sprites) { if (["business", "gate", "stopSign", "billboard"].includes(sp.kind)) continue; (byKind[sp.kind] = byKind[sp.kind] || []).push({ i: s.i, sp }); }
@@ -99,7 +109,7 @@ export class World3D {
           this.m4.compose(this.v3.set(p.x, p.y - (kind === "treeSunk" || kind === "houseFlooded" ? 0.8 : 0.05), p.z), this.q4.setFromEuler(this.eul.set(0, yaw, 0)), this.v3.clone().set(sc, sc, sc));
           im.setMatrixAt(n, this.m4);
         });
-        im.castShadow = false; im.receiveShadow = false; im.frustumCulled = false; group.add(im); st.inst[kind + v] = im;
+        im.castShadow = !!this.q.high && !/flood|sandbag|dune|fence/i.test(kind); im.receiveShadow = !!this.q.high; im.frustumCulled = false;   /* trees, houses and poles throw real shadows on desktops */ group.add(im); st.inst[kind + v] = im;
         // instances are in track order: keep a copy so only the stretch near the van is drawn
         st.scen.push({ im, segs: Int32Array.from(list, e => e.i), full: im.instanceMatrix.array.slice(), a: -1, b: -1 });
       });
@@ -146,7 +156,7 @@ export class World3D {
     for (const kind in hzKinds) {
       const list = hzKinds[kind];
       if (kind === "puddle" || kind === "sand") {
-        const im = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2), kind === "sand" ? new THREE.MeshLambertMaterial({ color: 0xbfa978 }) : (this.q.high ? new THREE.MeshStandardMaterial({ color: 0x40525c, roughness: 0.05, metalness: 0.2 }) : new THREE.MeshPhongMaterial({ color: 0x40525c, shininess: 90 })), list.length);
+        const im = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2), kind === "sand" ? new THREE.MeshLambertMaterial({ color: 0xbfa978 }) : (this.q.high ? new THREE.MeshStandardMaterial({ color: 0x2e3a40, roughness: 0.25, metalness: 0, envMapIntensity: 0.6 }) : new THREE.MeshPhongMaterial({ color: 0x40525c, shininess: 90 })), list.length);
         list.forEach((hz, n) => { const p = worldAt(cl, hz.seg * SEG, hz.offset); this.m4.compose(this.v3.set(p.x, p.y + 0.03, p.z), this.q4.setFromEuler(this.eul.set(0, -p.h, 0)), this.v3.clone().set(2.4, 1, 1.6)); im.setMatrixAt(n, this.m4); });
         group.add(im); continue;
       }
@@ -169,12 +179,15 @@ export class World3D {
     // ---- traffic
     const types = {}; track.cars.forEach(c => (types[c.type] = types[c.type] || []).push(c));
     for (const type in types) {
-      const list = types[type], im = new THREE.InstancedMesh(carGeometry(type), new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
+      const list = types[type], parts = carParts(type), im = new THREE.InstancedMesh(parts.body, this.q.high ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }) : new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = this.q.shadows; im.frustumCulled = false;
       list.forEach((c, n) => im.setColorAt(n, tmpC.set(type === "utility" || type === "boxtruck" ? "#eef0f3" : CAR_COLORS[c.color % CAR_COLORS.length])));
       const tl = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.16, 0.05), new THREE.MeshBasicMaterial({ color: 0xff2a24 }), list.length * 2); tl.instanceMatrix.setUsage(THREE.DynamicDrawUsage); tl.frustumCulled = false;
       const blob = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }), list.length); blob.frustumCulled = false;
-      group.add(im, tl, blob); st.cars[type] = { list, im, tl, blob, dim: CAR_DIM[type] };
+      // glass, tyres, rims and lamps keep their own colours (the paint above takes each car's colour)
+      const imD = new THREE.InstancedMesh(parts.detail, this.q.high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 }) : new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
+      imD.instanceMatrix.setUsage(THREE.DynamicDrawUsage); imD.frustumCulled = false; imD.castShadow = im.castShadow;
+      group.add(im, imD, tl, blob); st.cars[type] = { list, im, imD, tl, blob, dim: CAR_DIM[type] };
       if (type === "utility") { const bc = new THREE.InstancedMesh(new THREE.BoxGeometry(1.2, 0.16, 0.3), new THREE.MeshBasicMaterial({ color: 0xffa020 }), list.length); bc.instanceMatrix.setUsage(THREE.DynamicDrawUsage); bc.frustumCulled = false; group.add(bc); st.cars[type].beacon = bc; }
     }
     // ---- jumps: the drawbridge (stage 1) and the car carrier (stage 2)
@@ -250,7 +263,7 @@ export class World3D {
     this.scene.fog.color.set(L.fog); this.scene.fog.near = L.fogNear; this.scene.fog.far = Math.min(L.fogFar, this.q.far);
     this.hemi.color.set(L.hemiSky); this.hemi.groundColor.set(L.hemiGround); this.hemi.intensity = L.hemiIntensity;
     this.sun.color.set(L.sunColor); this.sun.intensity = L.sunIntensity;
-    this.e.renderer.toneMappingExposure = L.exposure;
+    this.e.renderer.toneMappingExposure = L.exposure; if (this.e.grade) this.e.grade.uniforms.uWarm.value = L.sunAmt;
     this.curLook = L;
   }
   updateEnv() {
@@ -299,29 +312,31 @@ export class World3D {
     const night = Math.max(0, Math.min(1, 1.25 - L.sunIntensity * 0.45 - L.hemiIntensity * 0.25 + L.rain * 0.3));
     const nos = game.boostT > 0 ? Math.min(1, game.boostT / 0.25, (this.cfg.physics.boostTime - game.boostT) / 0.12 + 0.3) : 0;
     this.nos = nos;
-    this.van.update({ speed: speedMs, dt, steer: INPUT.steer * (game.state === "drive" ? 1 : 0), brake: (INPUT.brake && game.state === "drive") || game.autoStop ? 1 : 0, night, air: airI, boost: nos, boostPop: Math.max(0, 1 - (this.cfg.physics.boostTime - game.boostT) / 0.3),
-      roll: -this.yawVis * 0.12 + game.roll * 0.5, pitch: -pitchAt(cl, vz) * 0.0 + (game.hitFx * 0.03), bounce: Math.sin((t - (1 - ra) / 60) * 19) * 0.012 * Math.min(1, speedMs / 20) + (Math.abs(P.x) > 1.05 ? Math.sin(t * 31) * 0.03 : 0) });
+    const Bd = game.body || { p: 0, r: 0, h: 0 };
+    this.van.update({ speed: speedMs, dt, steer: (game.steerS || 0) * (game.state === "drive" ? 1 : 0), brake: (INPUT.brake && game.state === "drive") || game.autoStop ? 1 : 0, night, air: airI, boost: nos, boostPop: Math.max(0, 1 - (this.cfg.physics.boostTime - game.boostT) / 0.3),
+      roll: Bd.r + game.roll * 0.3, pitch: Bd.p + game.hitFx * 0.03, bounce: Bd.h + (Math.abs(P.x) > 1.05 ? Math.sin(t * 31) * 0.02 : 0) });
     V.rotation.x = pitchAt(cl, vz) + (P.pitch || 0);
     if (this.headSpot) this.headSpot.intensity = night * 40;
     // ---- shadows follow the van
-    if (this.q.shadows) { const sd = this.sky.uniforms.sunDir.value; this.sun.position.set(pos.x + sd.x * 40, pos.y + Math.max(0.3, sd.y) * 40, pos.z + sd.z * 40); this.sun.target.position.set(pos.x, pos.y, pos.z); }
+    if (this.q.shadows) { const sd = this.sky.uniforms.sunDir.value, ah = this.q.high ? 18 : 0, cx = pos.x + Math.sin(pos.h) * ah, cz = pos.z - Math.cos(pos.h) * ah;   // the shadow box sits ahead of the van, where the eye is
+      this.sun.position.set(cx + sd.x * 80, pos.y + Math.max(0.3, sd.y) * 80, cz + sd.z * 80); this.sun.target.position.set(cx, pos.y, cz); }
     // ---- traffic
     for (const type in st.cars) {
       const C = st.cars[type]; let n = 0;
       C.list.forEach((car, idx) => {
         const visible = car.z > vz - 60 / U2M && car.z < vz + this.q.far * 0.9 / U2M;
-        if (!visible) { this.m4.compose(this.zero, this.q4.identity(), this.zero); C.im.setMatrixAt(idx, this.m4); C.tl.setMatrixAt(idx * 2, this.m4); C.tl.setMatrixAt(idx * 2 + 1, this.m4); C.blob.setMatrixAt(idx, this.m4); if (C.beacon) C.beacon.setMatrixAt(idx, this.m4); return; }
+        if (!visible) { this.m4.compose(this.zero, this.q4.identity(), this.zero); C.im.setMatrixAt(idx, this.m4); C.imD.setMatrixAt(idx, this.m4); C.tl.setMatrixAt(idx * 2, this.m4); C.tl.setMatrixAt(idx * 2 + 1, this.m4); C.blob.setMatrixAt(idx, this.m4); if (C.beacon) C.beacon.setMatrixAt(idx, this.m4); return; }
         const zI = car.z - (car.speed || 0) * (1 - ra) / 60;   // smoothed like the van
         const p = worldAt(cl, zI, car.offset), yaw = -p.h - Math.cos(t * 0.5 + car.seed) * 0.08 * car.swerve;
         this.q4.setFromEuler(this.eul.set(pitchAt(cl, zI), yaw, 0, "YXZ"));
-        this.m4.compose(this.v3.set(p.x, p.y, p.z), this.q4, this.one); C.im.setMatrixAt(idx, this.m4);
+        this.m4.compose(this.v3.set(p.x, p.y, p.z), this.q4, this.one); C.im.setMatrixAt(idx, this.m4); C.imD.setMatrixAt(idx, this.m4);
         const back = C.dim[1] / 2 + 0.02, w = C.dim[0] / 2 - 0.25, sx = Math.sin(yaw), cz = Math.cos(yaw);
         const bright = car.braking ? 1.6 : 1;
         for (const k of [0, 1]) { const ox = (k ? w : -w); this.m4.compose(this.v3.set(p.x + cz * ox + sx * back, p.y + 0.85, p.z - sx * ox + cz * back), this.q4, this.v3.clone().set(bright, bright, 1)); C.tl.setMatrixAt(idx * 2 + k, this.m4); }
         this.m4.compose(this.v3.set(p.x, p.y + 0.03, p.z), this.q4, this.v3.clone().set(C.dim[0] * 1.5, 1, C.dim[1] * 1.2)); C.blob.setMatrixAt(idx, this.m4);
         if (C.beacon) { const on = Math.sin(t * 12 + car.seed) > 0 ? 1 : 0.01; this.m4.compose(this.v3.set(p.x, p.y + 2.15, p.z), this.q4, this.v3.clone().set(on, on, on)); C.beacon.setMatrixAt(idx, this.m4); }
       });
-      C.im.instanceMatrix.needsUpdate = C.tl.instanceMatrix.needsUpdate = C.blob.instanceMatrix.needsUpdate = true; if (C.beacon) C.beacon.instanceMatrix.needsUpdate = true;
+      C.im.instanceMatrix.needsUpdate = C.imD.instanceMatrix.needsUpdate = C.tl.instanceMatrix.needsUpdate = C.blob.instanceMatrix.needsUpdate = true; if (C.beacon) C.beacon.instanceMatrix.needsUpdate = true;
     }
     // ---- hazards: drift, tumble, fly away when hit
     for (const hz of st.hz) {
@@ -381,6 +396,18 @@ export class World3D {
         pr.emit(bx, pos.y + 0.3, bz, right.x * side * (1 + Math.random() * 2) - fwd.x * 3, 1.5 + Math.random() * (game.inWater ? 4 : 2), right.z * side * (1 + Math.random() * 2) - fwd.z * 3, 0.5 + Math.random() * 0.4, col.map(c => c * 0.45), game.inWater ? 0.4 : 0.18, 9.8, 1.5);
       }
     }
+    // tyre smoke off the rear wheels in a tight turn or a slide (a fine mist on a wet road)
+    const sk = game.skid || 0;
+    if (sk > 0.12 && speedMs > 5 && !airI0) {
+      const n = Math.round(sk * (this.q.high ? 4 : 2) + Math.random() * 0.6), mist = wet || game.inWater;
+      for (let i = 0; i < n; i++) {
+        // puffs leave the tyre moving with the van, then drag slows them and they fall back and rise
+        const side = Math.random() < 0.5 ? -1 : 1, bx = pos.x + right.x * side * 1.15 - fwd.x * 1.9, bz = pos.z + right.z * side * 1.15 - fwd.z * 1.9;
+        const c = mist ? 0.46 : 0.42 + Math.random() * 0.12, carry = speedMs * (0.92 + Math.random() * 0.08), out = side * (0.8 + Math.random() * 1.6);
+        pr.emit(bx, pos.y + 0.3, bz, fwd.x * carry + right.x * out, 0.3 + Math.random() * 0.7, fwd.z * carry + right.z * out,
+          0.7 + Math.random() * 0.4, [c, c, c * 1.04], 1.8 + sk * 1.0, -0.5, 1.2);
+      }
+    }
     // nitrous sparks streaming out of the exhausts
     if (this.nos > 0.05) for (let i = 0; i < (this.q.high ? 3 : 1); i++) { const sx = Math.random() < 0.5 ? -1 : 1, bx = pos.x - fwd.x * 3.1 + right.x * sx * 0.55, bz = pos.z - fwd.z * 3.1 + right.z * sx * 0.55;
       pr.emit(bx, pos.y + airI0 + 0.45, bz, -fwd.x * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, Math.random() * 0.8, -fwd.z * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, 0.22 + Math.random() * 0.2, [0.35, 0.6, 1.0], 0.35, 0, 0.5); }
@@ -392,6 +419,8 @@ export class World3D {
     }
     game.events.length = 0;
     pr.update(dt);
+    // wet road: how wet, and rain rings in the puddles
+    if (st.roadU) { const U = st.roadU; U.uWet.value = Math.max(L.wet, game.inWater ? 1 : 0); U.uRain.value = L.rain * calm; U.uTime.value = t; }
   }
 
   // The escort: swoops in from high behind the camera, over the van, to a lead position ahead,
@@ -443,9 +472,11 @@ export class World3D {
     const air = this.airI || 0;
     const back = 8.2 + speedK * 0.9 + (game.boostT > 0 ? 0.8 : 0) + Math.min(3, air * 0.35), up = 5.1 - speedK * 0.2;
     const fx = Math.sin(C.heading), fz = -Math.cos(C.heading);
-    const ty = pos.y + up + air * 0.92;
+    // never below the road under the camera (steep hills, the levee drops): at least 2 m above it
+    const under = worldAt(st.cl, Math.max(0, game.player.z + CAM.playerZ - back / U2M), 0, this.camRoad || (this.camRoad = {})).y;
+    const ty = Math.max(pos.y + up + air * 0.92, under + 2.0);
     if (!C.init) { C.pos.y = ty; C.init = true; }
-    C.pos.x = pos.x - fx * back; C.pos.z = pos.z - fz * back; C.pos.y += (ty - C.pos.y) * Math.min(1, dt * 6);
+    C.pos.x = pos.x - fx * back; C.pos.z = pos.z - fz * back; C.pos.y += (ty - C.pos.y) * Math.min(1, dt * 6); C.pos.y = Math.max(C.pos.y, under + 1.6);   // the easing never lags it into the road
     const sh = game.shake * 0.25 + (Math.abs(P.x) > 1.05 ? 0.06 : 0) * speedK + game.flash * 0.05;
     cam.position.set(C.pos.x + (Math.random() - 0.5) * sh, C.pos.y + (Math.random() - 0.5) * sh, C.pos.z + (Math.random() - 0.5) * sh);
     cam.lookAt(pos.x + fx * 24, pos.y + 0.7 + air * 0.85, pos.z + fz * 24);

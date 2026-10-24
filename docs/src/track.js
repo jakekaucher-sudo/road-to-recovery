@@ -6,6 +6,8 @@ import { lerp, clamp } from "./util.js";
 
 export const SEG = 200, ROAD_W = 2000, LANES = 3;
 const M = 1 / 0.0037;                 // track units per metre (see three/space.js U2M)
+const CURVE_K = 0.0018;               // heading change per segment per unit of curve (as three/space.js)
+const MAX_HEADING = 0.7;              // radians (40°): the road never turns further than this from where it started, so it can't double back on itself
 
 export function rng(seed) {
   let a = seed >>> 0;
@@ -26,7 +28,9 @@ const THEME = {
 export function buildTrack(stage, index, cfg) {
   const R = rng(1000 + index * 7919);
   const segs = [];
+  let heading = 0;                            // running heading (radians), to keep the road from doubling back
   const add = (curve, y) => {
+    heading += curve * CURVE_K;
     const i = segs.length;
     segs.push({ i, curve, y, sprites: [], hazards: [], pickups: [], cars: [], water: 0, zone: false, p1: { world: { x: 0, y: 0, z: i * SEG }, camera: {}, screen: {} }, p2: { world: { x: 0, y: 0, z: (i + 1) * SEG }, camera: {}, screen: {} } });
   };
@@ -39,8 +43,9 @@ export function buildTrack(stage, index, cfg) {
   };
   const L = stage.length;
   const approach = 260;                       // straight run-in to the business
-  // ---- jumps: a drawbridge across a river (stage 1) and a parked car carrier with its ramp down (stage 2)
-  const jumps = [], jumpAt = { 0: "drawbridge", 1: "carrier" }[index];
+  // ---- jumps, three a stage: a raised drawbridge over a river, a parked car carrier with its ramp down,
+  // and steel kicker ramps in one lane
+  const jumps = [], plan = (JUMPS[index] || []).slice();
   const insertJump = (kind) => {
     const y0 = lastY();
     if (kind === "drawbridge") {
@@ -52,6 +57,14 @@ export function buildTrack(stage, index, cfg) {
       j.gap1 = segs.length; for (let k = 0; k < leaf; k++) { add(0, y0 + H * (1 - k / leaf)); segs[segs.length - 1].bridge = { part: "down", k }; }
       j.down1 = segs.length; for (let k = 0; k < 70; k++) add(0, y0);
       j.span0 = j.up0 - 6; j.span1 = j.down1 + 6; j.angle = Math.atan2(4.2, leaf * SEG / M);
+      jumps.push(j);
+    } else if (kind === "kicker") {
+      // a steel ramp in one lane: line up with it and the van leaves the top at speed
+      const run = 50, lane = [-0.62, 0, 0.62][Math.floor(R() * 3)], j = { kind, lane, H: 1.8, kick: 0, ramp: 11, deck: 0, cab: 0 };
+      for (let k = 0; k < run; k++) add(0, y0);
+      j.i0 = segs.length; j.lip = j.i0 + j.ramp; j.end = j.lip + 4;   // (a little past the lip, so the launch check still sees the van)
+      for (let k = 0; k < j.ramp + 90; k++) add(0, y0);
+      j.span0 = j.i0 - 40; j.span1 = j.end + 60;
       jumps.push(j);
     } else {
       // car carrier parked in the right lane: rear ramp, empty upper deck, a kick at the front over the cab
@@ -65,14 +78,22 @@ export function buildTrack(stage, index, cfg) {
   };
   addRoad(10, 40, 10, 0, 0);                 // start straight
   while (segs.length < L - approach - 60) {
-    if (jumpAt && !jumps.length && segs.length > L * 0.42) { insertJump(jumpAt); continue; }
+    if (plan.length && segs.length > L * plan[0][1]) { insertJump(plan.shift()[0]); continue; }
     const r = R();
     const len = 25 + Math.floor(R() * 45);
     const dir = R() < 0.5 ? -1 : 1;
-    const curve = r < 0.2 ? 0 : dir * (1.5 + R() * 4.5) * stage.curves;
+    let curve = r < 0.2 ? 0 : dir * (1.5 + R() * 4.5) * stage.curves;
+    // a bend that would take the road past MAX_HEADING turns the other way instead, or is eased off
+    const turn = (c) => c * CURVE_K * (r > 0.85 ? 28.3 * 0.6 : len * 1.33);   // heading change of the bend (S-bends: their first half)
+    if (curve && Math.abs(heading + turn(curve)) > MAX_HEADING) {
+      curve = -curve;
+      if (Math.abs(heading + turn(curve)) > MAX_HEADING) curve *= Math.max(0, MAX_HEADING - Math.abs(heading)) / Math.abs(turn(curve));
+    }
     const maxY = 2600;                                   // keep the road within ~10 m of its start height
     let hill = (R() - 0.5) * 60 * stage.hills; const yNow = lastY();
     if (yNow + hill * SEG > maxY) hill = -Math.abs(hill); if (yNow + hill * SEG < -maxY) hill = Math.abs(hill);
+    // no steeper than a real road: an average grade of 9% over the section (height per segment = grade)
+    const n = r > 0.85 ? 40 : (len * 0.4 | 0) * 2 + len, maxH = 0.09 * n; hill = Math.max(-maxH, Math.min(maxH, hill));
     if (r > 0.85) { addRoad(10, 20, 10, -curve * 0.6, hill); addRoad(10, 20, 10, curve * 0.6, -hill); } // S-bend
     else addRoad(len * 0.4 | 0, len, len * 0.4 | 0, curve, hill);
   }
@@ -131,8 +152,9 @@ export function buildTrack(stage, index, cfg) {
     segs[i].hazards.push(hz);
   }
   // ---- time pickups ---------------------------------------------------------
-  for (let k = 0; k < 6; k++) {
-    let i = 150 + Math.floor((k + 0.5) / 6 * (zoneStart - 300));
+  const nPick = Math.round(N / 900);                 // a handful of +3 s pickups a stage (the clock is meant to be tight)
+  for (let k = 0; k < nPick; k++) {
+    let i = 150 + Math.floor((k + 0.5) / nPick * (zoneStart - 300));
     while (nearJump(i, 20)) i += 10;
     segs[i].pickups.push({ kind: "time", offset: [-0.6, 0, 0.6][Math.floor(R() * 3)], got: false, bonus: 3 });
   }
@@ -148,4 +170,12 @@ export function buildTrack(stage, index, cfg) {
   return { segs, N, cars, finish, length: N * SEG, theme, stage, index, jumps };
 }
 
+// Where each stage's jumps go (fraction of the stage length).
+const JUMPS = [
+  [["kicker", 0.2], ["drawbridge", 0.44], ["kicker", 0.7]],
+  [["kicker", 0.22], ["carrier", 0.46], ["kicker", 0.72]],
+  [["kicker", 0.2], ["kicker", 0.45], ["kicker", 0.7]],
+  [["kicker", 0.2], ["kicker", 0.45], ["carrier", 0.7]],
+  [["kicker", 0.2], ["drawbridge", 0.46], ["kicker", 0.72]],
+];
 export function findSeg(track, z) { return track.segs[clamp(Math.floor(z / SEG), 0, track.N - 1)]; }
