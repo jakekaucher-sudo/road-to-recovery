@@ -291,8 +291,11 @@ export class Game {
     this.updateDerived();
     this.audio.engine(Math.min(1.3, speedK), true, boosting);
     // tyres: a tight turn at speed (or a brake-and-steer slide) makes them squeal and smoke
-    const slide = brake > 0 && Math.abs(steer) > 0.3 && speedK > 0.35;
-    const skidT = air || P.speed < 1500 ? 0 : clamp((Math.abs(this.steerS) * Math.min(1.2, speedK) - 0.36) / 0.3, 0, 1) * (surfaceWater > 0 ? 0.4 : 1) + (slide ? 0.7 : 0);
+    // only a hard turn counts: steering pushed fully over (key held, stick at full lock) for a third of a
+    // second at speed; quick taps and lane changes never squeal. A brake-and-steer slide always does.
+    this.hardT = Math.abs(steer) > 0.9 && speedK > 0.6 && !air ? (this.hardT || 0) + DT : 0;
+    const slide = brake > 0 && Math.abs(steer) > 0.6 && speedK > 0.45;
+    const skidT = air ? 0 : (this.hardT > 0.33 ? clamp((this.hardT - 0.33) / 0.25, 0, 1) * (surfaceWater > 0 ? 0.4 : 1) : 0) + (slide ? 0.8 : 0);
     this.skid = (this.skid || 0) + (Math.min(1, skidT) - (this.skid || 0)) * Math.min(1, DT * 10);
     this.audio.skid(controls ? this.skid : 0);
     // controller haptics: road texture with speed, more on the verge, the tyres, nitrous
