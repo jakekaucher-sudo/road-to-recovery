@@ -65,8 +65,9 @@ export function drawHUD(ctx, g, W, H, cfg) {
   neonText(ctx, String(Math.round(g.mph)), gx, gy - 36 * s, Math.round(6 * s), WHITE, { align: "center", glow: NEON });
   pixelText(ctx, "MPH", gx, gy + 10 * s, Math.max(1, Math.round(2 * s)), NEON, { align: "center" });
   // boosts
-  for (let i = 0; i < cfg.physics.boostsPerStage; i++) {
-    const on = i < g.boosts, bx2 = gx - 50 * s + i * 50 * s, by2 = gy + 40 * s;
+  const nb = cfg.physics.maxBoosts || cfg.physics.boostsPerStage;
+  for (let i = 0; i < nb; i++) {
+    const on = i < g.boosts, bx2 = gx + (i - (nb - 1) / 2) * 38 * s, by2 = gy + 40 * s;
     ctx.fillStyle = on ? NEON : "rgba(92,200,255,0.18)";
     ctx.beginPath(); ctx.moveTo(bx2 - 12 * s, by2); ctx.lineTo(bx2, by2 - 10 * s); ctx.lineTo(bx2 + 12 * s, by2); ctx.lineTo(bx2, by2 + 10 * s); ctx.closePath(); ctx.fill();
   }

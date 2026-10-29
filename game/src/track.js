@@ -158,6 +158,13 @@ export function buildTrack(stage, index, cfg) {
     while (nearJump(i, 20)) i += 10;
     segs[i].pickups.push({ kind: "time", offset: [-0.6, 0, 0.6][Math.floor(R() * 3)], got: false, bonus: 3 });
   }
+  // ---- nitrous bottles: unseeded, so they are somewhere new every game -------------------------
+  const nNitro = (cfg.pickups && cfg.pickups.nitroPerStage) || 0;
+  for (let k = 0; k < nNitro; k++) {
+    let i = 120 + Math.floor((k + 0.2 + Math.random() * 0.6) / nNitro * (zoneStart - 360));
+    while (nearJump(i, 20) || segs[i].pickups.length) i += 7;
+    segs[i].pickups.push({ kind: "nitro", offset: [-0.6, 0, 0.6][Math.floor(Math.random() * 3)], got: false });
+  }
   // ---- traffic ----------------------------------------------------------------
   const cars = [];
   const types = ["sedan", "pickup", "utility", "boxtruck", "sedan", "hatch"];

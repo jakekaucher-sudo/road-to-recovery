@@ -35,15 +35,14 @@ Built by `tools/make_radio_audio.py` from instrumental Artlist tracks (downloade
 
 | File | Station | Tracks, in order |
 |---|---|---|
-| `radio/country.m4a` | Big Sky 98.7 | Alex's four breaks, one before each song: "Banjo Backbeat" (instrumental) by Ofer Koren; "Outlaw Love" (instrumental version) by Brooks Herring; "Heartland and Home" by Will Van De Crommert; "Heartland Rebel" by Steven Beddall |
-| `radio/rock.m4a` | The Storm 104.1 | "Top of the Rock" by Ikoliks; "Spark" by Leva |
-| `radio/hiphop.m4a` | Heat 95.3 | "We Up" (instrumental) by Derek Minor; "My Chic Sunglasses" by Damon Power |
-| `radio/latin.m4a` | La Isla 92.9 | GC's station ident, "Un Pasito Mas" (instrumental) by Matan Gov Ari, GC's break, "2000" by 2KIDZ, GC's break, "Moonlit Fiesta" by Raz Burg |
-| `radio/pop.m4a` | Sunny 99.9 | "Roll with It" (instrumental) by Scooter Diggs; "Summer Dive" by Raz Burg |
-| `radio/olivia-1.m4a` … `olivia-6.m4a` | Pulse 101.5 | DJ Olivia's drops. The game plays one about every minute over the stage song and dips the music under her voice. |
-| `radio/talk.m4a` | Recovery Talk 1590 AM | 14 lines: host Charlotte, callers Dave and a bakery owner, and Marcus from a disaster recovery center |
+| `radio/top40.m4a` | Sunny 99.9 (Top 40) | DJ Alex introduces each SBA song, made in Suno under the owner's Pro plan (commercial use rights; lyrics in `scripts/2026-10-28-radio-script-3.md`): "Don't Wait" and "Thirty Years" (`source/radio/top40-1.mp3`, `top40-2.mp3`). Songs 3 to 6 join automatically once their files exist. Then "Roll with It" (instrumental) by Scooter Diggs and "Summer Dive" by Raz Burg |
+| `radio/latin.m4a` | La Isla 92.9 | Two of GC's breaks before each song: "Un Pasito Mas" (instrumental) by Matan Gov Ari, "2000" by 2KIDZ, "Moonlit Fiesta" by Raz Burg |
+| `radio/olivia-1.m4a` … `olivia-10.m4a` | Pulse 101.5 | DJ Olivia's drops. The game plays one about every minute over the stage song and dips the music under her voice. |
+| `radio/talk.m4a` | Recovery Talk 1590 AM | Three segments, 38 lines: host Charlotte; callers Dave, a bakery owner, Rosa, Earl, Priya and Walt; guests Marcus from a disaster recovery center and Alex from Sunny 99.9 |
 
-All the songs came from Artlist searches filtered to instrumental tracks, so none have lyrics.
+The country, rock and hip hop stations were removed on 2026-10-28 (their sources stay in `source/radio/`).
+
+The Artlist songs came from searches filtered to instrumental tracks, so none have lyrics.
 
 **Voices.** Charlotte, GC, Marcus, Alex, Olivia and the callers are generated with Artlist text-to-speech (Eleven v3), originals in `source/radio/voice/`. The callers use the phone-call voice effect. The talk show's calls are **dramatized**: the people are fictional, and the station card says so. Every fact they mention is from SBA.gov and checked against `research/2026-10-17-sba-disaster-loans.md` and `research/2026-10-17-sba-office-of-disaster-recovery-and-resilience.md`:
 

@@ -27,7 +27,7 @@ export class Game {
     this.player = { z: 0, x: 0, y: 0, speed: 0 };
     this.camX = 0; this.camShakeY = 0; this.parallax = 0; this.flash = 0; this.bolt = null; this.nextBolt = 3;
     this.yaw = 0; this.roll = 0; this.hitFx = 0; this.shake = 0; this.windNow = 0;
-    this.escort = { ready: false, active: false, t: 0, out: -1, k: 0 }; this.escortEarned = false;
+    this.escort = { ready: false, active: false, t: 0, out: -1, k: 0 }; this.escortEarned = false; this.planHeli();
     this.radio = new Radio(cfg, audio, true);
     this.loadStage(0);
   }
@@ -37,6 +37,7 @@ export class Game {
     this.stageIndex = i; this.stageCfg = this.cfg.stages[i];
     if (i === this.cfg.stages.length - 1) { const end = getCutscene(this.cfg.cutscenes.ending); if (end && end.music && this.audio.ctx) this.audio.loadClip(end.music.url).catch(e => console.warn(e)); }   // ending music ready before it is needed
     this.track = buildTrack(this.stageCfg, i, this.cfg);
+    this.placeHeli();
     this.env = WEATHER[this.stageCfg.weather];
     const prev = i > 0 ? WEATHER[this.cfg.stages[i - 1].weather] : WEATHER.dusk;
     this.envFrom = prev; this.envBlend = 0;
@@ -46,11 +47,11 @@ export class Game {
     // Phones steer by tilt or touch, which is slower than a keyboard, so they get a little more time,
     // and nobody starts a stage with less than a fair floor (a retry after time-up never carries anything over).
     const base = this.stageTime();
-    this.time = Math.max((keepTime ? Math.min(this.time, this.cfg.difficulty.carryMax ?? 1e9) : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = this.cfg.physics.boostsPerStage; this.boostT = 0; this.boostQueued = false;
+    this.time = Math.max((keepTime ? Math.min(this.time, this.cfg.difficulty.carryMax ?? 1e9) : 0) + base, base * (this.mobile ? this.cfg.difficulty.minStartFactor : 0)); this.boosts = Math.max(this.cfg.physics.boostsPerStage, keepTime ? Math.min(this.boosts || 0, this.cfg.physics.maxBoosts) : 0); this.boostT = 0; this.boostQueued = false;
     this.crashes = 0; this.stopT = 0; this.messages = []; this.particles = []; this.tornado = null;
     this.restoreP[this.stageCfg.business] = 0;
     // the hidden helicopter escort: earned by running out of time, offered once on the retry
-    this.stopEscort(); const E = this.escort; E.ready = this.escortEarned; this.escortEarned = false;
+    this.stopEscort(); const E = this.escort; E.ready = this.escortEarned || this.heliHeld; this.escortEarned = false;
     if (E.ready && this.audio.ctx) Object.values(this.cfg.escort.sfx).forEach(u => this.audio.loadClip(u).catch(() => {}));
     for (const s of this.track.segs) s.cars = [];
     this.movers = []; for (const s of this.track.segs) for (const h of s.hazards) if (h.vx) this.movers.push(h);
@@ -83,7 +84,7 @@ export class Game {
       if (intro && intro.music) { try { await this.audio.loadClip(intro.music.url); } catch (e) { console.warn(e); } }
       // (tilt permission is requested by the tap itself, in input.js)
       this.results = []; this.funds = 0; this.fundsShown = 0; this.time = 0; this.restoreP = [0, 0, 0, 0, 0];
-      this.loadStage(0);
+      this.planHeli(); this.loadStage(0);
       this.playCutscene(this.cfg.cutscenes.intro, "briefing");
     } finally { this.starting = false; }
   }
@@ -319,7 +320,7 @@ export class Game {
         }
       }
       for (const p of s.pickups) {
-        if (!p.got && Math.abs(P.x - p.offset) < (VAN_W + 0.2) / 2) { p.got = true; this.time += p.bonus; this.audio.sfxPlay("pickup"); rumble(0.25, 90); this.msg("+" + p.bonus + " SEC", "#ECC444", 1.0, 6, 0.36); this.events.push({ type: "pickup" }); }
+        if (!p.got && Math.abs(P.x - p.offset) < (VAN_W + 0.2) / 2) { p.got = true; this.collect(p); }
       }
     }
     // traffic
@@ -483,10 +484,31 @@ export class Game {
     else this.msg("NICE JUMP!", "#ECC444", 1.0, 5, 0.36);
   }
 
+  collect(p) {
+    this.audio.sfxPlay("pickup"); this.events.push({ type: "pickup", kind: p.kind });
+    if (p.kind === "nitro") {
+      const max = this.cfg.physics.maxBoosts;
+      if (this.boosts < max) { this.boosts++; this.msg("+1 NITROUS", "#5CC8FF", 1.0, 6, 0.36); } else this.msg("NITROUS FULL", "#5CC8FF", 0.9, 5, 0.36);
+      rumble(0.3, 120);
+    } else if (p.kind === "heli") {
+      this.heliPlan.got = true; this.heliHeld = true; const E = this.escort;
+      if (!E.active) { E.ready = true; if (this.audio.ctx) Object.values(this.cfg.escort.sfx).forEach(u => this.audio.loadClip(u).catch(() => {})); }
+      rumble(0.5, 300); this.msg(this.escortHint(), "#ECC444", 3.2, 6, 0.4);
+    } else { this.time += p.bonus; rumble(0.25, 90); this.msg("+" + p.bonus + " SEC", "#ECC444", 1.0, 6, 0.36); }
+  }
+  // once a game, the helicopter badge waits somewhere on the road: a random stage, a random spot
+  planHeli() { this.heliHeld = false; this.heliPlan = { stage: Math.floor(Math.random() * this.cfg.stages.length), f: 0.15 + Math.random() * 0.6, lane: [-0.6, 0, 0.6][Math.floor(Math.random() * 3)], got: false }; }
+  placeHeli() {
+    const H = this.heliPlan, tr = this.track; if (!this.cfg.pickups || !this.cfg.pickups.heli || !H || H.got || H.stage !== this.stageIndex) return;
+    let i = 120 + Math.floor(H.f * (tr.finish.zoneStart - 360));
+    const near = (k) => tr.jumps.some(j => k >= j.span0 - 25 && k <= j.span1 + 25);
+    while (near(i) || tr.segs[i].pickups.length) i += 9;
+    tr.segs[i].pickups.push({ kind: "heli", offset: H.lane, got: false });
+  }
   // ------------------------------------------------------------- helicopter escort
   escortHint() { return INPUT.pad.connected ? "HELICOPTER ESCORT READY: PRESS B" : this.mobile ? "HELICOPTER ESCORT READY: TAP THE HELICOPTER" : "HELICOPTER ESCORT READY: PRESS 1"; }
   startEscort() {
-    const E = this.escort; E.ready = false; E.active = true; E.t = 0; E.out = -1; E.loop = null; E.loopOn = false;
+    const E = this.escort; E.ready = false; E.active = true; E.t = 0; this.heliHeld = false; E.out = -1; E.loop = null; E.loopOn = false;
     this.messages = this.messages.filter(m => !m.text.startsWith("HELICOPTER ESCORT READY"));
     rumble(0.45, 500); this.escortSound("start");
   }

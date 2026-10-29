@@ -175,6 +175,13 @@ export const PROPS = {
   frond: () => { const f = paint(new THREE.ConeGeometry(0.4, 2.6, 3), "#4f8c42"); f.scale(1, 1, 0.25); return at(f, 0, 0.15, 0, 0, 0, Math.PI / 2); },
   puddle: () => null, sand: () => null, flood: () => null, wave: () => null, waveCrest: () => null,
   // ---------- pickups and traffic
+  // a nitrous bottle, lying on its side: blue body, chrome valve, white band
+  nitro: () => merge([at(paint(new THREE.CylinderGeometry(0.34, 0.34, 1.3, 20), "#1f6fe0"), 0, 0, 0, 0, 0, Math.PI / 2), at(paint(new THREE.SphereGeometry(0.34, 20, 10), "#1f6fe0"), 0.65, 0, 0), at(paint(new THREE.SphereGeometry(0.34, 20, 10), "#1f6fe0"), -0.65, 0, 0),
+    at(paint(new THREE.CylinderGeometry(0.35, 0.35, 0.22, 20), "#ffffff"), 0.1, 0, 0, 0, 0, Math.PI / 2), at(paint(new THREE.CylinderGeometry(0.09, 0.12, 0.34, 10), "#d8dde4"), 1.08, 0, 0, 0, 0, Math.PI / 2), box(0.12, 0.26, 0.26, "#cd2127", 1.28, 0, 0)]),
+  // the escort badge: a little gold helicopter (body, tail boom, rotor disc and skids)
+  heli: () => merge([at(paint(new THREE.SphereGeometry(0.55, 20, 12), "#ecc444"), 0, 0, 0), box(1.3, 0.16, 0.16, "#ecc444", -0.95, 0.12, 0), box(0.1, 0.42, 0.06, "#0e2e6a", -1.55, 0.3, 0),
+    at(paint(new THREE.CylinderGeometry(1.3, 1.3, 0.04, 28), "#0e2e6a"), 0, 0.68, 0), box(0.08, 0.2, 0.08, "#0e2e6a", 0, 0.58, 0), box(1.3, 0.06, 0.06, "#0e2e6a", 0, -0.62, 0.38), box(1.3, 0.06, 0.06, "#0e2e6a", 0, -0.62, -0.38),
+    at(paint(new THREE.SphereGeometry(0.3, 14, 10), "#5cc8ff"), 0.36, 0.1, 0)]),
   clock: () => merge([at(paint(new THREE.CylinderGeometry(0.55, 0.55, 0.14, 20), "#ecc444"), 0, 0, 0, Math.PI / 2), at(paint(new THREE.CylinderGeometry(0.44, 0.44, 0.16, 20), "#fffbe8"), 0, 0, 0, Math.PI / 2), box(0.06, 0.32, 0.02, "#0e2e6a", 0, -0.02, 0.1), box(0.24, 0.06, 0.02, "#0e2e6a", 0.1, -0.03, 0.1)]),
 };
 

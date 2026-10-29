@@ -174,8 +174,17 @@ export class World3D {
     }
     // ---- pickups
     const pk = []; for (const s of track.segs) for (const p of s.pickups) { p.seg = s.i; pk.push(p); }
-    if (pk.length) { const im = new THREE.InstancedMesh(PROPS.clock(), new THREE.MeshBasicMaterial({ vertexColors: true }), pk.length); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); group.add(im); st.pk = { im, list: pk };
-      const glow = new THREE.SpriteMaterial({ map: glowTexture(), color: 0xecc444, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }); st.pkGlow = pk.map(() => { const s = new THREE.Sprite(glow); s.scale.set(2.6, 2.6, 1); group.add(s); return s; }); }
+    // one instanced mesh per kind: +3 s clocks, nitrous bottles, and the helicopter badge (with a beacon you can see from far off)
+    st.pk = []; const LOOK = { time: ["clock", 0xecc444, 2.6], nitro: ["nitro", 0x5cc8ff, 3.0], heli: ["heli", 0xecc444, 4.2] };
+    for (const kind in LOOK) {
+      const list = pk.filter(p => (p.kind || "time") === kind); if (!list.length) continue;
+      const [prop, col, gs] = LOOK[kind], im = new THREE.InstancedMesh(PROPS[prop](), new THREE.MeshBasicMaterial({ vertexColors: true }), list.length); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false; group.add(im);
+      const glow = new THREE.SpriteMaterial({ map: glowTexture(), color: col, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+      const glows = list.map(() => { const s = new THREE.Sprite(glow); s.scale.set(gs, gs, 1); group.add(s); return s; });
+      let beams = null;
+      if (kind === "heli") beams = list.map(() => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.4, 60, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xecc444, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); group.add(b); return b; });
+      st.pk.push({ kind, im, list, glows, beams, size: new THREE.Vector3(1, 1, 1).multiplyScalar(kind === "heli" ? 1.6 : 1) });
+    }
     // ---- traffic
     const types = {}; track.cars.forEach(c => (types[c.type] = types[c.type] || []).push(c));
     for (const type in types) {
@@ -311,6 +320,7 @@ export class World3D {
     const V = this.van.root; V.position.set(pos.x, pos.y + airI, pos.z); V.rotation.set(0, -pos.h - this.yawVis, 0, "YXZ");
     const night = Math.max(0, Math.min(1, 1.25 - L.sunIntensity * 0.45 - L.hemiIntensity * 0.25 + L.rain * 0.3));
     const nos = game.boostT > 0 ? Math.min(1, game.boostT / 0.25, (this.cfg.physics.boostTime - game.boostT) / 0.12 + 0.3) : 0;
+    if (this.e.grade) { const u = this.e.grade.uniforms.uBoost; u.value += ((game.state === "drive" ? nos : 0) - u.value) * Math.min(1, dt * 8); }
     this.nos = nos;
     const Bd = game.body || { p: 0, r: 0, h: 0 };
     this.van.update({ speed: speedMs, dt, steer: (game.steerS || 0) * (game.state === "drive" ? 1 : 0), brake: (INPUT.brake && game.state === "drive") || game.autoStop ? 1 : 0, night, air: airI, boost: nos, boostPop: Math.max(0, 1 - (this.cfg.physics.boostTime - game.boostT) / 0.3),
@@ -353,8 +363,12 @@ export class World3D {
     }
     if (st.waves) st.waves.forEach(w => { const p = worldAt(cl, w.hz.seg * SEG, 0); const ph = (t * 0.45 + w.hz.seed * 0.001) % 1, k = Math.sin(ph * Math.PI); w.mesh.position.set(p.x + Math.cos(p.h) * (HALFW + 6 - ph * (2 * HALFW + 10)), p.y + 0.3 + k * 1.2, p.z + Math.sin(p.h) * (HALFW + 6 - ph * (2 * HALFW + 10))); w.mesh.rotation.y = -p.h + Math.PI / 2; w.mesh.material.opacity = 0.75 * k; });
     // ---- pickups
-    if (st.pk) st.pk.list.forEach((p, n) => { const w = worldAt(cl, p.seg * SEG, p.offset), show = !p.got; this.m4.compose(this.v3.set(w.x, w.y + 1.4 + Math.sin(t * 3 + n) * 0.15, w.z), this.q4.setFromEuler(this.eul.set(0, t * 2.5 + n, 0)), show ? this.one : this.zero); st.pk.im.setMatrixAt(n, this.m4); st.pkGlow[n].position.set(w.x, w.y + 1.4, w.z); st.pkGlow[n].visible = show; });
-    if (st.pk) st.pk.im.instanceMatrix.needsUpdate = true;
+    if (st.pk) for (const P of st.pk) {
+      const h = P.kind === "heli" ? 2.2 : 1.4;
+      P.list.forEach((p, n) => { const w = worldAt(cl, p.seg * SEG, p.offset), show = !p.got; this.m4.compose(this.v3.set(w.x, w.y + h + Math.sin(t * 3 + n) * 0.15, w.z), this.q4.setFromEuler(this.eul.set(0, t * 2.5 + n, 0)), show ? P.size : this.zero); P.im.setMatrixAt(n, this.m4); P.glows[n].position.set(w.x, w.y + h, w.z); P.glows[n].visible = show;
+        if (P.beams) { P.beams[n].position.set(w.x, w.y + 30, w.z); P.beams[n].visible = show; P.beams[n].material.opacity = 0.16 + 0.08 * Math.sin(t * 4); } });
+      P.im.instanceMatrix.needsUpdate = true;
+    }
     // ---- lamps at dusk/storms
     if (st.glowMat) st.glowMat.opacity = 0.15 + 0.7 * night;
     // ---- business facade (redraw while restoring)
@@ -412,7 +426,7 @@ export class World3D {
     if (this.nos > 0.05) for (let i = 0; i < (this.q.high ? 3 : 1); i++) { const sx = Math.random() < 0.5 ? -1 : 1, bx = pos.x - fwd.x * 3.1 + right.x * sx * 0.55, bz = pos.z - fwd.z * 3.1 + right.z * sx * 0.55;
       pr.emit(bx, pos.y + airI0 + 0.45, bz, -fwd.x * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, Math.random() * 0.8, -fwd.z * (6 + Math.random() * 6) + (Math.random() - 0.5) * 1.5, 0.22 + Math.random() * 0.2, [0.35, 0.6, 1.0], 0.35, 0, 0.5); }
     for (const ev of game.events) {
-      if (ev.type === "sparks" || ev.type === "pickup") { const col = ev.type === "pickup" ? [0.95, 0.8, 0.3] : [1, 0.85, 0.5]; for (let i = 0; i < 28; i++) pr.emit(pos.x + fwd.x * 3, pos.y + 1, pos.z + fwd.z * 3, (Math.random() - 0.5) * 12, Math.random() * 7, (Math.random() - 0.5) * 12, 0.6 + Math.random() * 0.4, col, 0.35); }
+      if (ev.type === "sparks" || ev.type === "pickup") { const col = ev.type === "pickup" ? (ev.kind === "nitro" ? [0.36, 0.78, 1] : [0.95, 0.8, 0.3]) : [1, 0.85, 0.5]; for (let i = 0; i < 28; i++) pr.emit(pos.x + fwd.x * 3, pos.y + 1, pos.z + fwd.z * 3, (Math.random() - 0.5) * 12, Math.random() * 7, (Math.random() - 0.5) * 12, 0.6 + Math.random() * 0.4, col, 0.35); }
       if (ev.type === "land") { const k = Math.min(40, 10 + (ev.impact || 0) * 2.5); for (let i = 0; i < k; i++) { const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 6; pr.emit(pos.x + Math.cos(a) * 1.4, pos.y + 0.2, pos.z + Math.sin(a) * 2.4, Math.cos(a) * v, 0.6 + Math.random() * 2, Math.sin(a) * v, 0.5 + Math.random() * 0.4, wet ? [0.3, 0.33, 0.37] : [0.34, 0.3, 0.25], 0.8, 6, 1.5); } }
       if (ev.type === "splash") for (let i = 0; i < 40; i++) { const side = Math.random() < 0.5 ? -1 : 1; pr.emit(pos.x + right.x * side * 1.2, pos.y + 0.2, pos.z + right.z * side * 1.2, right.x * side * (2 + Math.random() * 5), 3 + Math.random() * 5, right.z * side * (2 + Math.random() * 5), 0.8, [0.8, 0.88, 0.95], 1.0); }
       if (ev.type === "restore" && st.biz) { const b = st.biz.g.position; for (let i = 0; i < 6; i++) pr.emit(b.x + (Math.random() - 0.5) * 14, b.y + Math.random() * st.biz.height, b.z + (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 2, 1 + Math.random() * 2, (Math.random() - 0.5) * 2, 1.2, [1, 0.85, 0.35], 0.6, -0.5); }

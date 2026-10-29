@@ -17,7 +17,7 @@ export const CONFIG = {
     mobileTimeFactor: 1.12,   // phones get 12% more time on every stage
     minStartFactor: 1.3,      // phones never start a stage with less than 1.3x its (phone) base time
     retryFactor: 1.25,        // retrying after time runs out gives 1.25x the stage time
-    carryMax: 10,             // seconds of leftover time that carry into the next stage
+    carryMax: 0,              // seconds of leftover time that carry into the next stage (none: every stage is its own race)
     mobileAssist: { default: 0.2, hurricane: 0.55, tornado: 0.35 },   // share of wind and curve drift removed on phones
   },
   // ---- Hidden bonus: an SBA helicopter escort, offered on the retry after time runs out.
@@ -43,22 +43,26 @@ export const CONFIG = {
     roadKeep: 0.35,           // gentle pull back onto the road near its edges when you are not steering
     boostSpeed: 15600,        // top speed while boosting
     boostTime: 2.6,           // seconds per boost
-    boostsPerStage: 3,
+    boostsPerStage: 1,        // nitrous you start each stage with; more lies on the road
+    maxBoosts: 4,             // the most you can carry
     crashSlow: 0.35,          // speed multiplier on hitting traffic or debris
     stopMph: 12,              // counts as stopped for a delivery
   },
 
+  // ---- Pickups on the road: nitrous bottles in new places every game, and once a game a helicopter
+  // badge that calls Sam's escort (it turns up on a random stage, at a random spot).
+  pickups: { nitroPerStage: 3, heli: true },
+
   // ---- Stages: weather, length (segments), time added, hazards, traffic -----
-  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.12-1.15x what
-  // the autopilot takes on average (it collects some pickups and crashes now and then). At most `carryMax` seconds
-  // left over carry into the next stage, so every stage stands on its own.
+  // Stages are about 65% longer than at launch, with three jumps each. Times are tight: about 1.05x what the
+  // autopilot takes on average (it crashes far more than a person does). Nothing carries over between stages.
   // `weather` names a preset in src/weather.js.
   stages: [
-    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 80, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
-    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 92, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
-    { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 90, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
+    { name: "AFTERMATH",       weather: "dusk",      length: 4300, time: 70, traffic: 17, hazards: 15, curves: 1.0, hills: 0.6, fact: 0, business: 0 },
+    { name: "HEAVY WEATHER",   weather: "storm",     length: 4700, time: 82, traffic: 20, hazards: 24, curves: 1.25, hills: 0.8, fact: 1, business: 1 },
+    { name: "FLOOD ZONE",      weather: "flood",     length: 4900, time: 83, traffic: 17, hazards: 27, curves: 0.9, hills: 0.0, fact: 2, business: 2 },
     { name: "TORNADO ALLEY",   weather: "tornado",   length: 5200, time: 98, traffic: 17, hazards: 32, curves: 1.1, hills: 0.3, fact: 3, business: 3 },
-    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 116, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
+    { name: "HURRICANE COAST", weather: "hurricane", length: 5500, time: 105, traffic: 20, hazards: 35, curves: 1.3, hills: 0.0, fact: 4, business: 4 },
   ],
 
   // ---- The five stops: two businesses, a homeowner, renters, a nonprofit ---
@@ -134,12 +138,9 @@ export const CONFIG = {
   radio: {
     stations: [
       { id: "pulse", name: "PULSE", freq: "101.5 FM", genre: "ELECTRONIC", color: "#5CC8FF", url: null, note: "With DJ Olivia.",
-        drops: ["audio/radio/olivia-1.m4a", "audio/radio/olivia-2.m4a", "audio/radio/olivia-3.m4a", "audio/radio/olivia-4.m4a", "audio/radio/olivia-5.m4a", "audio/radio/olivia-6.m4a"] },   // Olivia talks over the stage songs
-      { id: "bigsky", name: "BIG SKY", freq: "98.7 FM", genre: "COUNTRY", color: "#ECC444", url: "audio/radio/country.m4a", note: "With Alex." },
-      { id: "storm", name: "THE STORM", freq: "104.1 FM", genre: "ROCK", color: "#FF5A5F", url: "audio/radio/rock.m4a" },
-      { id: "heat", name: "HEAT", freq: "95.3 FM", genre: "HIP HOP", color: "#FF8A3D", url: "audio/radio/hiphop.m4a" },
+        drops: Array.from({ length: 10 }, (_, k) => `audio/radio/olivia-${k + 1}.m4a`) },   // Olivia talks over the stage songs
+      { id: "sunny", name: "SUNNY", freq: "99.9 FM", genre: "TOP 40", color: "#FF6FB0", url: "audio/radio/top40.m4a", note: "With Alex. Songs about SBA disaster help." },
       { id: "isla", name: "LA ISLA", freq: "92.9 FM", genre: "LATIN", color: "#3DDCB4", url: "audio/radio/latin.m4a", note: "Hosted by GC." },
-      { id: "sunny", name: "SUNNY", freq: "99.9 FM", genre: "POP", color: "#FF6FB0", url: "audio/radio/pop.m4a" },
       { id: "talk", name: "RECOVERY TALK", freq: "1590 AM", genre: "TALK", color: "#ECC444", url: "audio/radio/talk.m4a",
         note: "With Charlotte. Dramatized calls, facts from SBA.gov." },
       { id: "off", name: "RADIO OFF", freq: "", genre: "", color: "#C9D2E0", url: "" },

@@ -87,14 +87,19 @@ export function groundMaterial(mat, D) {
 // Film-style grade on the finished (display) image: gentle S-curve, a touch more colour, cool shadows and
 // warm highlights, a soft vignette, faint lens fringing at the edges and fine moving grain.
 export const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 0.5 } },
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 0.5 }, uBoost: { value: 0 } },
   vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
   fragmentShader: /* glsl */`
-uniform sampler2D tDiffuse; uniform float uTime, uWarm; varying vec2 vUv;
+uniform sampler2D tDiffuse; uniform float uTime, uWarm, uBoost; varying vec2 vUv;
 float gh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
   vec2 d = vUv - 0.5; float r2 = dot(d, d);
   vec3 c = vec3(texture2D(tDiffuse, vUv - d * 0.0035 * r2 * 4.0).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv + d * 0.0035 * r2 * 4.0).b);
+  if (uBoost > 0.01) {                                                         // nitrous: the edges of the frame streak toward you
+    float k = uBoost * smoothstep(0.08, 0.3, r2) * 0.016, j = gh(vUv * 777.0 + fract(uTime)); vec3 acc = c;
+    for (int i = 1; i <= 7; i++) acc += texture2D(tDiffuse, vUv - d * k * (float(i) - j)).rgb;   // jittered taps: a smooth smear, no ghost copies
+    c = acc / 8.0;
+  }
   c = mix(c, c * c * (3.0 - 2.0 * c), 0.22);                                 // contrast
   float l = dot(c, vec3(0.299, 0.587, 0.114));
   c = mix(vec3(l), c, 1.1);                                                    // saturation

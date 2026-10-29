@@ -2,11 +2,11 @@
 """Build the desktop radio stations in audio/radio/ from the licensed Artlist sources in
 audio/source/radio/ (see audio/README.md). Each station is one looping file, so the game can
 tune in part-way through, the way car radios do in open-world games. macOS only (afconvert).
-  rock / hiphop / pop .m4a            the station's songs back to back, each faded in and out
-  country.m4a                         Alex's four breaks, one before each song
-  latin.m4a                           GC's three breaks, one before each song
-  olivia-1..6.m4a                     Olivia's drops, played over the Pulse songs (the game dips the music under her)
-  talk.m4a                            Recovery Talk: Charlotte, her callers and her studio guest
+  top40.m4a                           Sunny 99.9: Alex's breaks, one before each of the SBA songs (source/radio/top40-*.mp3,
+                                      made in Suno; until they exist, the two licensed pop songs stand in)
+  latin.m4a                           La Isla: two of GC's breaks before each song
+  olivia-1..10.m4a                    Olivia's drops, played over the Pulse songs (the game dips the music under her)
+  talk.m4a                            Recovery Talk: Charlotte, her callers and her guests, segments 1 to 3
 Every song is matched to the loudness of the stage music, so switching stations never jumps in volume.
 Usage: python3 game/tools/make_radio_audio.py      (prints each station's length for config.js)"""
 import array, audioop, glob, os, subprocess, tempfile, wave
@@ -83,30 +83,26 @@ TARGET = sum(stage) / len(stage); print(f"stage music RMS {TARGET:.0f}")
 def song(f): return fade(level(load(os.path.join(SRC, f)), TARGET), 0.4, 2.5)
 def line(f, k=1.0): return level(trim(load(os.path.join(VOICE, f))), TARGET * 0.8 * k)   # speech has pauses, so a lower RMS sounds as loud
 
-STATIONS = {
-    "rock":    ["rock-top-of-the-rock.mp3", "rock-spark.mp3"],
-    "hiphop":  ["hiphop-we-up.mp3", "hiphop-my-chic-sunglasses.mp3"],
-    "pop":     ["pop-roll-with-it.mp3", "pop-summer-dive.mp3"],
-}
-for name, songs in STATIONS.items():
-    out = b""
-    for f in songs: out += song(f) + silence(0.9)
-    write(out, name + ".m4a")
-
-# La Isla and Big Sky: each break starts under the last bars of the song before it, then the next song comes in
+# La Isla and Sunny: each break starts under the last bars of the song before it, then the next song comes in
 def hosted(pairs, name):
     out = b""
-    for v, f in pairs:
-        v = line(v)
-        out = overlay(out, v, max(0.0, secs(out) - 1.6)) if out else v
+    for vs, f in pairs:
+        v = b""
+        for n in vs: v += (silence(0.45) if v else b"") + line(n)
+        if v: out = overlay(out, v, max(0.0, secs(out) - 1.6)) if out else v
+        elif out: out += silence(0.9)
         out += silence(0.35) + song(f)
     write(out, name)
-hosted((("gc-1.mp3", "latin-un-pasito-mas.mp3"), ("gc-2.mp3", "latin-2000.mp3"), ("gc-3.mp3", "latin-moonlit-fiesta.mp3")), "latin.m4a")
-hosted((("alex-1.mp3", "country-banjo-backbeat.mp3"), ("alex-2.mp3", "country-outlaw-love.mp3"), ("alex-3.mp3", "country-heartland-and-home.mp3"),
-        ("alex-4.mp3", "country-heartland-rebel.mp3")), "country.m4a")
+hosted(((("gc-1.mp3", "gc-4.mp3"), "latin-un-pasito-mas.mp3"), (("gc-2.mp3", "gc-5.mp3"), "latin-2000.mp3"), (("gc-3.mp3", "gc-6.mp3"), "latin-moonlit-fiesta.mp3")), "latin.m4a")
+# Sunny 99.9 Top 40: Alex introduces each SBA song (alex-n goes with top40-n); the stand-in pop songs get the general breaks
+# (alex-n names song n, so a song without its file yet is skipped with its intro; the licensed pop songs fill the hour)
+top = [(f"alex-{n}.mp3",) for n in range(1, 7) if os.path.exists(os.path.join(SRC, f"top40-{n}.mp3"))]
+pairs = [(v, f"top40-{v[0][5:-4]}.mp3") for v in top]
+pairs += [((), "pop-roll-with-it.mp3"), ((), "pop-summer-dive.mp3")]
+hosted(pairs, "top40.m4a")
 
 # Pulse: Olivia's drops as separate clips, a touch louder than the other hosts since they sit over a song
-for n in range(1, 7): write(line(f"olivia-{n}.mp3", 1.15) + silence(0.2), f"olivia-{n}.m4a", 96, mono=True)
+for n in range(1, 11): write(line(f"olivia-{n}.mp3", 1.15) + silence(0.2), f"olivia-{n}.m4a", 96, mono=True)
 
 # Recovery Talk: speakers alternate with short, natural gaps; a longer pause before the sign-off
 order = ["01-charlotte", "02-dave", "03-charlotte", "04-dave", "05-charlotte", "06-baker", "07-charlotte", "08-baker",
@@ -114,9 +110,11 @@ order = ["01-charlotte", "02-dave", "03-charlotte", "04-dave", "05-charlotte", "
 # segment 2 (Rosa, Earl and Alex calling in), once its lines are recorded
 seg2 = ["15-charlotte", "16-rosa", "17-charlotte", "18-rosa", "19-charlotte", "20-earl", "21-charlotte", "22-earl",
         "23-charlotte", "24-alex", "25-charlotte", "26-alex", "27-charlotte", "28-charlotte"]
-if all(os.path.exists(os.path.join(VOICE, n + ".mp3")) for n in seg2): order += seg2
+seg3 = ["29-charlotte", "30-priya", "31-charlotte", "32-priya", "33-charlotte", "34-walt", "35-charlotte", "36-walt", "37-charlotte", "38-charlotte"]
+for seg in (seg2, seg3):
+    if all(os.path.exists(os.path.join(VOICE, n + ".mp3")) for n in seg): order += seg
 out = silence(0.6)
 for k, n in enumerate(order):
-    caller = any(c in n for c in ("dave", "baker", "rosa", "earl", "alex"))   # phone-filtered voices read quieter at the same RMS
-    out += line(n + ".mp3", 1.08 if caller else 1.0) + silence(1.4 if n in ("13-charlotte", "27-charlotte") else 2.5 if n == "14-charlotte" else 0.5)
+    caller = any(c in n for c in ("dave", "baker", "rosa", "earl", "alex", "priya", "walt"))   # phone-filtered voices read quieter at the same RMS
+    out += line(n + ".mp3", 1.08 if caller else 1.0) + silence(1.4 if n in ("13-charlotte", "27-charlotte", "37-charlotte") else 2.5 if n in ("14-charlotte", "28-charlotte") else 0.5)
 write(out + silence(1.5), "talk.m4a", 64, mono=True)
